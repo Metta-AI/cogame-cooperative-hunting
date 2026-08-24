@@ -402,8 +402,11 @@ proc observationFor*(
   if recent.len == 0:
     result.add(" (nothing yet)")
   else:
+    # One line per entry, which is what the header promises. They were
+    # concatenated onto the header's own line, so five events read as one
+    # run-on sentence.
     for line in recent[max(0, recent.len - 5) ..< recent.len]:
-      result.add("  " & line)
+      result.add("\n  " & line)
   result.add("\n")
   # The design note bounds the WHOLE observation at 2000 runes, not just each
   # list in it. The lists above are the reply contract (the header, the party,
