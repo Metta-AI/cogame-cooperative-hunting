@@ -274,6 +274,15 @@ block pageIsSound:
     "function seekTo" in page and "hideEndcard();" in page)
   check("the page loads the starter's chrome_common.js",
     "chrome_common.js" in page)
+  # Loading chrome_common and then re-implementing what it does is how a page
+  # becomes a lookalike (cogame-gridlock, 2026-08-23). The page must
+  # INSTANTIATE it and hand it the transport.
+  check("the page instantiates chrome_common",
+    "window.ChromeCommon({" in page)
+  check("chrome_common renders the transport bar",
+    "chromeCommon.renderTransport(" in page)
+  check("chrome_common owns the spoiler toggle",
+    "chromeCommon.getSpoilers()" in page)
   check("the page has no zoom or minimap wiring left",
     "attachMinimap" notin page)
 

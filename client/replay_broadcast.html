@@ -1288,8 +1288,10 @@ body[data-embed] #board { top: 0; height: 100%; }
      ========================================================== */
   function boot() {
     var byId = function (id) { return document.getElementById(id); };
-    var SPEEDS = [1, 2, 4, 8];
     var core = null;
+    var chromeCommon = null;
+    var speed = 1;
+    var skipping = false;
     var chrome = null;
     var beatsBuilt = false;
     var beatEls = [];
@@ -1393,7 +1395,8 @@ body[data-embed] #board { top: 0; height: 100%; }
           ? 'Round card'
           : (VARIANT_CAPTION[state.variant] || 'The hunt')) +
         ' \u00b7 ' + playTick + ' / ' + playTotal;
-      byId('tick-clock').textContent = playTick + ' / ' + playTotal;
+      // #tick-clock belongs to the transport bar, and chrome_common's
+      // renderTransport writes it from the scrubber's own axis.
     }
 
     var VARIANT_CAPTION = {
@@ -1473,7 +1476,8 @@ body[data-embed] #board { top: 0; height: 100%; }
     }
 
     function gateBeats(state) {
-      var spoil = byId('btn-spoilers').classList.contains('on');
+      var spoil = chromeCommon ? chromeCommon.getSpoilers()
+        : byId('btn-spoilers').classList.contains('on');
       beatEls.forEach(function (entry) {
         entry.el.classList.toggle('ahead', !spoil && entry.tick > state.tick);
       });
@@ -1535,38 +1539,65 @@ body[data-embed] #board { top: 0; height: 100%; }
       core.seek(currentIndex);
     }
 
-    function buildSpeedChips() {
-      var host = byId('speedchips');
-      host.textContent = '';
-      SPEEDS.forEach(function (value) {
-        var chip = document.createElement('button');
-        chip.className = 'chip' + (value === 1 ? ' on' : '');
-        chip.textContent = value + '\u00d7';
-        chip.onclick = function () {
-          core.setSpeed(value);
-          Array.prototype.forEach.call(host.children, function (node) {
-            node.classList.remove('on');
-          });
-          chip.classList.add('on');
-        };
-        host.appendChild(chip);
-      });
+    // ---- the ChromeCommon seam ------------------------------------------
+    // chrome_common.js is the starter's shared chrome and this page
+    // INSTANTIATES it: loading the file and then re-implementing what it
+    // does is how a page becomes a lookalike. It owns the transport bar
+    // (the play/loop/skip glyphs, the speed chips, the ffwd chips), the
+    // scrubber geometry and its tick clock, the lull spans, the momentum
+    // band and the spoiler toggle.
+    //
+    // What stays in this block is the half that is this game's own and that
+    // chrome_common has no shape for: the round clock (a hunt has rounds
+    // and a round card, not a countdown to a draw limit), the six hunter
+    // plates, the feed, the end-card, and the beat markers -- ours are
+    // LABELLED buttons that seek to their tick, which the starter's
+    // markBeat, an unlabelled div, cannot be.
+    //
+    // The momentum band stays empty on purpose: it draws a lives LEAD
+    // between sides and a hunt has no sides. Feeding it six same-coloured
+    // score lines would be a fiction, so the band is left as the starter
+    // ships it rather than filled with one.
+    var SPEED_COMMANDS = { '1': 1, '2': 2, '3': 3, '4': 4, '8': 8, '6': 16 };
+
+    function sendTransportCommand(command) {
+      // chrome_common's speed chips send the wire command chars the starter
+      // uses; this replay's transport is a local core, so map them back.
+      var value = SPEED_COMMANDS[command];
+      if (!value || !core) return;
+      speed = value;
+      core.setSpeed(value);
+      paintTransport();
     }
 
-    // A transport button shows the ACTION it performs, which is the
-    // starter's rule too (chrome_common: `s.pl ? pause : play`). This was
-    // inverted -- it drew the play glyph after starting playback -- and the
-    // markup ships the play glyph while static_replay.js starts PLAYING, so
-    // the button lied before it was ever pressed.
-    function renderPlayButton() {
-      byId('btn-play').textContent =
-        core.isPlaying() ? '\u275a\u275a' : '\u25b6';
+    function transportState() {
+      // The frame chrome_common's renderTransport reads. `st`/`mx`/`t` are
+      // the scrubber's axis: a replay has no lobby prefix, so it starts at
+      // 0. No `teams`/`roster`/`lead`: see the momentum note above.
+      return {
+        en: true,
+        pl: !!(core && core.isPlaying()),
+        lp: loop,
+        sk: skipping,
+        ff: skipping,
+        sp: speed,
+        st: 0,
+        mx: Math.max(1, tickCount - 1),
+        t: Math.max(0, Math.min(currentIndex, tickCount - 1)),
+        ph: 'playing'
+      };
+    }
+
+    function paintTransport() {
+      // NOT `renderTransport`: that name is a ChromeCommon alias and a
+      // hoisted declaration here would shadow it.
+      if (chromeCommon) chromeCommon.renderTransport(transportState());
     }
 
     function wireTransport() {
       byId('btn-play').onclick = function () {
         core.setPlaying(!core.isPlaying());
-        renderPlayButton();
+        paintTransport();
       };
       byId('btn-restart').onclick = function () { seekTo(0); };
       byId('btn-back').onclick = function () { seekTo(currentIndex - 1); };
@@ -1574,18 +1605,21 @@ body[data-embed] #board { top: 0; height: 100%; }
       byId('btn-end').onclick = function () { seekTo(tickCount - 1); };
       byId('btn-loop').onclick = function () {
         loop = !loop;
-        byId('btn-loop').classList.toggle('on', loop);
+        paintTransport();
       };
       byId('btn-skip').onclick = function () {
-        var on = !byId('btn-skip').classList.contains('on');
-        byId('btn-skip').classList.toggle('on', on);
-        byId('ffwd-chip').classList.toggle('show', on);
-        core.setSpeed(on ? 4 : 1);
+        skipping = !skipping;
+        speed = skipping ? 4 : 1;
+        core.setSpeed(speed);
+        paintTransport();
       };
-      byId('btn-spoilers').onclick = function () {
-        byId('btn-spoilers').classList.toggle('on');
+      // chrome_common owns the spoiler toggle: it carries the URL default
+      // (?spoilers=0), the button's `on` class and its own click listener,
+      // which runs before this one. All that is left here is re-gating THIS
+      // game's beat markers against the new value.
+      byId('btn-spoilers').addEventListener('click', function () {
         if (chrome) gateBeats(chrome);
-      };
+      });
       byId('scrub').onclick = function (event) {
         // Beat markers stopPropagation, so anything that reaches here is a
         // seek on the track itself.
@@ -1606,7 +1640,7 @@ body[data-embed] #board { top: 0; height: 100%; }
         else if (event.key === '.') byId('btn-fwd').onclick();
         else if (event.key === 'r') byId('btn-loop').onclick();
         else if (event.key === 'f') byId('btn-skip').onclick();
-        else if (event.key === 'o') byId('btn-spoilers').onclick();
+        else if (event.key === 'o') byId('btn-spoilers').click();
       });
     }
 
@@ -1626,11 +1660,8 @@ body[data-embed] #board { top: 0; height: 100%; }
       pumpFeed(state);
       gateBeats(state);
       byId('gamechips').hidden = state.variant !== 'predator-prey';
-      var progress = tickCount > 1 ? currentIndex / (tickCount - 1) : 0;
-      byId('scrub-fill').style.width = (progress * 100) + '%';
-      byId('scrub-head').style.left = (progress * 100) + '%';
       byId('status').textContent = '';
-      renderPlayButton();
+      paintTransport();
       if (state.final) showEndcard(state.final);
     }
 
@@ -1653,9 +1684,13 @@ body[data-embed] #board { top: 0; height: 100%; }
         if (chrome && chrome.final) showEndcard(chrome.final);
       }
     });
-    buildSpeedChips();
+    chromeCommon = window.ChromeCommon({
+      send: sendTransportCommand,
+      sendPov: function () {},   // no POV lens: the whole board is always up
+      getState: transportState
+    });
     wireTransport();
-    renderPlayButton();
+    paintTransport();
     window.addEventListener('resize', function () { core.setViewportFit(); });
     core.start();
 

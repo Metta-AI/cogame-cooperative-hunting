@@ -114,6 +114,44 @@
     });
   }
 
+  function measureTransport(size) {
+    // chrome_common.js owns the transport bar, so the evidence that the page
+    // INSTANTIATES it rather than re-implementing it is that the bar is
+    // painted at all: the speed chips are built by ChromeCommon's own
+    // constructor and the tick clock and the play glyph are written by its
+    // renderTransport.
+    var chips = Array.prototype.slice.call(
+      document.querySelectorAll('#speedchips .chip'));
+    notes.speed_chips = chips.length;
+    if (chips.length < 4) {
+      failures.push(size + ': chrome_common built ' + chips.length +
+        ' speed chips, so the page never instantiated it');
+    }
+    if (!chips.some(function (chip) { return chip.classList.contains('on'); })) {
+      failures.push(size + ': no speed chip is marked current');
+    }
+    var clock = byId('tick-clock').textContent;
+    notes.tick_clock = clock;
+    if (!/\d+\s*\/\s*\d+/.test(clock)) {
+      failures.push(size + ': the transport tick clock reads "' + clock +
+        '", so renderTransport never ran');
+    }
+    var play = byId('btn-play').textContent;
+    notes.play_glyph = play;
+    if (play.indexOf('\u25b6') >= 0) {
+      failures.push(size + ': the play button shows the play glyph while ' +
+        'playback is running');
+    }
+    var stage = box(byId('stage'));
+    ['transport', 'scrub', 'momentum', 'lulls'].forEach(function (id) {
+      var edges = outsideOf(box(byId(id)), stage);
+      if (edges.length) {
+        failures.push(size + ': #' + id + ' is outside the frame (' +
+          edges.join('+') + ')');
+      }
+    });
+  }
+
   function measurePlates(size) {
     // The scorebug is chrome, not model text -- but it is the one band that
     // carries a policy NAME and a SCORE at every width, and the six-hunter
@@ -279,6 +317,7 @@
           }
         });
       }).then(function () {
+        measureTransport(size);
         measurePlates(size);
         measureFeed(size, expected);
         // Pass 2: the same frame with the episode over, so the end-card and
