@@ -308,7 +308,7 @@ GAME_SCRIPT = r"""
     var chrome = null;
     var beatsBuilt = false;
     var beatEls = [];
-    var feedLines = [];
+    var feedSeen = {};
     var platesBuilt = 0;
     var tickCount = 1;
     var currentIndex = 0;
@@ -419,20 +419,37 @@ GAME_SCRIPT = r"""
     };
 
     // ---- feed ------------------------------------------------------------
+    // The chrome label carries only the lines NEW since the previous frame,
+    // but the replay re-emits the SAME frame for as long as the playhead
+    // sits on a tick -- paused, scrubbed, or parked at the end -- so each of
+    // those lines arrives again on every one of those frames. Rebuilding the
+    // host for each of them restarted the `feedin` entrance animation at
+    // 8 Hz and no row ever settled: in run 32774674232 the six end-of-hunt
+    // lines drew permanently mid-animation, translated past the right frame
+    // edge at 60 % opacity. Dedupe on the line's own identity and append
+    // only what is new, so a row animates in once and then stays put.
+    function feedKey(line) {
+      return line.t + '|' + (line.kind || '') + '|' + line.text;
+    }
+
+    function clearFeed() {
+      feedSeen = {};
+      byId('feed').textContent = '';
+    }
+
     function pumpFeed(state) {
       if (!state.feed || !state.feed.length) return;
-      state.feed.forEach(function (line) {
-        feedLines.push(line);
-      });
-      while (feedLines.length > 6) feedLines.shift();
       var host = byId('feed');
-      host.textContent = '';
-      feedLines.forEach(function (line) {
+      state.feed.forEach(function (line) {
+        var key = feedKey(line);
+        if (feedSeen[key]) return;
+        feedSeen[key] = true;
         var row = document.createElement('div');
         row.className = 'feed-row ' + (line.kind || '');
         row.textContent = escText(line.text);
         host.appendChild(row);
       });
+      while (host.children.length > 6) host.removeChild(host.firstChild);
     }
 
     // ---- scrubber beats --------------------------------------------------
@@ -522,8 +539,13 @@ GAME_SCRIPT = r"""
     // ---- transport -------------------------------------------------------
     function seekTo(index) {
       // Every seek dismisses the endcard so the match is visible again; it
-      // comes back when playback reaches the end once more.
+      // comes back when playback reaches the end once more. The feed goes
+      // with it: its lines are the ones new since the previous frame, so
+      // after a jump they belong to a stretch of the hunt that is no longer
+      // on screen -- and clearing lets them arrive again if playback
+      // returns to them.
       hideEndcard();
+      clearFeed();
       currentIndex = Math.max(0, Math.min(tickCount - 1, index));
       core.seek(currentIndex);
     }
@@ -631,7 +653,7 @@ GAME_SCRIPT = r"""
         tickCount = count || tickCount;
       },
       onEnd: function () {
-        if (loop) { seekTo(0); feedLines = []; return; }
+        if (loop) { seekTo(0); return; }
         if (chrome && chrome.final) showEndcard(chrome.final);
       }
     });

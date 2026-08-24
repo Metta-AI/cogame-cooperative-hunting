@@ -166,6 +166,14 @@
     });
   }
 
+  function nextFrame() {
+    return new Promise(function (resolve) {
+      requestAnimationFrame(function () {
+        requestAnimationFrame(resolve);
+      });
+    });
+  }
+
   function report(ok) {
     window.__fixtureReport = {
       ok: ok && failures.length === 0,
@@ -202,6 +210,28 @@
       hooks.onTick(state.tick, state.rounds * state.ticksPerRound);
       hooks.onText(JSON.stringify(live));
       return settle().then(function () {
+        // The replay re-emits the SAME frame for as long as the playhead
+        // sits on a tick (paused, or parked at the end), so every line in
+        // it arrives again on every one of those frames. A feed that
+        // rebuilds its rows for each of them restarts the entrance
+        // animation forever and the rows never settle: in run 32774674232
+        // the six end-of-hunt lines were permanently mid-`feedin`,
+        // translated past the right frame edge at 60 % opacity. Node
+        // identity across a repeated frame is the deterministic test.
+        var before = Array.prototype.slice.call(
+          document.querySelectorAll('#feed .feed-row'));
+        hooks.onText(JSON.stringify(live));
+        return nextFrame().then(function () {
+          var after = Array.prototype.slice.call(
+            document.querySelectorAll('#feed .feed-row'));
+          var rebuilt = after.length !== before.length ||
+            after.some(function (el, index) { return el !== before[index]; });
+          if (rebuilt) {
+            failures.push(size + ': the feed rebuilt its ' + after.length +
+              ' rows on a repeated frame, so no row ever settles');
+          }
+        });
+      }).then(function () {
         measureFeed(size, expected);
         // Pass 2: the same frame with the episode over, so the end-card and
         // its full-cap standings are measured too. `feed` is empty because
