@@ -732,7 +732,12 @@ def main():
     body = re.sub(r"    <div id=\"povBadge\">.*?\n", "", body)
     body = re.sub(r"    <!-- First-person picture-in-picture.*?\n    </div>\n",
                   "", body, flags=re.S)
-    body = body.replace('    <div id="bannerlane"></div>\n', "")
+    # #bannerlane stays. It is not on the design note's removal list, its CSS
+    # section (3. BANNER LANE) is kept verbatim above the banner comment, and
+    # an empty lane draws nothing: it is `pointer-events: none` with a
+    # reserved min-height so the layout never jumps when a chip lands. Taking
+    # the element out while keeping its rules left the page one silent step
+    # further from the starter's for no gain.
     body = body.replace('    <div id="killfeed"></div>',
                         '    <!-- One line per catch, plan `say`, trample, gore, tag, forage and\n'
                         '         fallback. #feed replaces the starter\'s #killfeed. -->\n'
