@@ -120,6 +120,79 @@ block runeBoundarySurvival:
     check("the boundary rune survived the round trip",
       reparsed["ticks"][0]["ev"][0]["say"].getStr() == capped)
 
+proc reDerivationMismatch(replayBytes: string): string =
+  ## Replay a recording through the viewer's own re-derivation and re-record
+  ## every tick with the SAME writer the live server used. Returns "" when
+  ## each re-derived tick is field-for-field the recorded one, or a
+  ## description of the first tick that is not.
+  ##
+  ## `q`, `c` are omitted from a tick when unchanged, so this pins the one
+  ## compression too: an absent array must still mean "identical to the
+  ## previous tick" after the round trip.
+  let recordedDoc = parseJson(replayBytes)
+  let parsedDoc = parseReplayDoc(replayBytes)
+  if parsedDoc.ticks.len != recordedDoc["ticks"].len:
+    return "the parsed document dropped ticks: " & $parsedDoc.ticks.len &
+      " of " & $recordedDoc["ticks"].len
+  var viewerSim = initSimFromDoc(parsedDoc)
+  var writer = initReplayWriter(viewerSim, @[])
+  for index in 0 .. parsedDoc.ticks.high:
+    let frame = parsedDoc.ticks[index]
+    viewerSim.applyTick(parsedDoc, index)
+    writer.recordTick(viewerSim, frame.roundNo, frame.phase, @[])
+    let derived = parseJson(writer.ticks[index])
+    var recorded = copy(recordedDoc["ticks"][index])
+    # `ev` is the tick's event log, not its state; the feed and the beats are
+    # derived from it and it is not re-emitted by the viewer.
+    if recorded.hasKey("ev"):
+      recorded.delete("ev")
+    if derived != recorded:
+      var detail = ""
+      for key in ["t", "r", "ph", "p", "q", "c"]:
+        let
+          a = (if derived.hasKey(key): $derived[key] else: "(absent)")
+          b = (if recorded.hasKey(key): $recorded[key] else: "(absent)")
+        if a != b:
+          detail.add("\n    " & key & " re-derived: " & a[0 ..< min(a.len, 400)])
+          detail.add("\n    " & key & " recorded  : " & b[0 ..< min(b.len, 400)])
+      return "tick index " & $index & " (t=" & $frame.tick & ") differs:" &
+        detail
+  return ""
+
+block viewerReproducesEveryFrame:
+  ## Acceptance checklist item 2: replaying the recording reproduces the
+  ## recorded per-tick state FRAME BY FRAME -- every tick of the episode and
+  ## every field the replay records (positions, facing, energy, score and
+  ## flags per seat; prey, items and berries; corpses) -- and the viewer's
+  ## display is built from that same re-derivation (below).
+  let mismatch = reDerivationMismatch(bytes)
+  if mismatch.len > 0:
+    echo "  ", mismatch
+  check("every recorded tick is reproduced frame by frame",
+    mismatch.len == 0)
+
+block viewerReproducesEveryFramePredatorPrey:
+  ## The variant with the most re-derived state: per-round roles come from
+  ## `rounds[].roles` and the tall-grass hide flag is recomputed from the
+  ## re-derived position, not read back from the recording.
+  let ppDir = getTempDir() / "ch-replay-parse-pp"
+  removeDir(ppDir)
+  var ppConfig = defaultGameConfig()
+  ppConfig.numAgents = 6
+  ppConfig.variant = "predator-prey"
+  ppConfig.rounds = 2
+  ppConfig.ticksPerRound = 120
+  ppConfig.players = @["alpha", "bravo", "charlie", "delta", "echo", "foxtrot"]
+  discard runEpisodeOffline(ppConfig,
+    @["big_game_hunter", "big_game_hunter", "sidekick", "modeler",
+      "stag_hunter", "rabbiteer"],
+    ppDir / "results.json", ppDir / "replay.json")
+  let mismatch = reDerivationMismatch(readFile(ppDir / "replay.json"))
+  if mismatch.len > 0:
+    echo "  ", mismatch
+  check("every predator-prey tick is reproduced frame by frame",
+    mismatch.len == 0)
+
 block viewerReDerivesFrames:
   ## Re-feeding each tick through the replay renderer must yield a non-empty
   ## sprite packet -- the same buildGlobalFrame the live server uses.

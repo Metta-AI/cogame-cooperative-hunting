@@ -517,6 +517,11 @@ proc applyTick*(sim: var SimServer, doc: ReplayDoc, index: int) =
         (if (flags and FlagKillGlow) != 0: KillGlowTicks else: 0)
       sim.players[i].trampleGlow =
         (if (flags and FlagHurtGlow) != 0: TrampleGlowTicks else: 0)
+      # The gore shove rides the same bit playersArray writes it from, so a
+      # re-derived tick carries it too: without this the re-derivation
+      # silently dropped the flag on every tick a hunter was being pushed.
+      sim.players[i].pushStep =
+        (if (flags and FlagAlerted) != 0: MooseGutAnimSteps else: 0)
       sim.players[i].disconnected = (flags and FlagDisconnected) != 0
       if sim.isPredatorPrey() and sim.roundIndex < doc.roundRoles.len and
           i < doc.roundRoles[sim.roundIndex].len:
