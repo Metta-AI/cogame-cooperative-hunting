@@ -309,11 +309,17 @@ jobs:
           # frame) and only the soak catches it (cogball 0.1.4). The cert
           # fixture is 1040 ticks = 43 s of playback, so it outlasts the soak
           # by design (ecos, 2026-08-23).
+          # --strict-text-bounds: the arena is a fixed 32x32 board that is
+          # always drawn in full (no pan, no #viewpanel), so a string that
+          # crossed a canvas edge on EVERY draw has nowhere legitimate to be
+          # and `never_inside` must be 0. Without the flag the number is only
+          # logged (cogchemists, 2026-08-24).
           node tools/ci/viewer_smoke.mjs \
             --bundle dist/static-replay-viewer \
             --replay "${replay}" \
             --timeout 90 \
-            --soak 10
+            --soak 10 \
+            --strict-text-bounds
 
       - name: Upload the viewer smoke evidence
         # Always: the screenshot and the JSON are most useful when the job is red.
