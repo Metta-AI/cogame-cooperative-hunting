@@ -405,8 +405,18 @@ proc observationFor*(
     for line in recent[max(0, recent.len - 5) ..< recent.len]:
       result.add("  " & line)
   result.add("\n")
+  # The design note bounds the WHOLE observation at 2000 runes, not just each
+  # list in it. The lists above are the reply contract (the header, the party,
+  # the animals, LEGAL TARGETS) and measure at most 1596 runes together, so
+  # the room left over is what the strategy gets here -- and the strategy is
+  # repeated IN FULL in the system prompt, so a seat never loses it.
   if prompt.len > 0:
-    result.add("STRATEGY: " & runeCap(prompt, MaxPromptRunes) & "\n")
+    let room = MaxObservationRunes - result.runeLen - "STRATEGY: \n".len
+    if room > 0:
+      result.add("STRATEGY: " & runeCap(prompt, min(MaxPromptRunes, room)) &
+        "\n")
+  if result.runeLen > MaxObservationRunes:
+    result = runeCap(result, MaxObservationRunes - 1) & "\u2026"
 
 proc systemPromptFor*(prompt: string): string =
   result = SystemPromptBase

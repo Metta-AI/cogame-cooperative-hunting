@@ -211,6 +211,12 @@ const
   MaxSayRunes* = 120
   MaxNoteRunes* = 200
   MaxPromptRunes* = 1200
+  ## The whole assembled observation, not just each list inside it. Every
+  ## list is separately bounded (party <= 5, animals <= 12, legal targets
+  ## <= 13, blocked tiles <= 40, recent <= 5) and their worst case measured
+  ## 1596 runes, so what this bound actually governs is the STRATEGY block
+  ## appended after them -- which the system prompt already carries in full.
+  MaxObservationRunes* = 2000
   MaxNameRunes* = 64
   MaxErrorRunes* = 240
   MaxIntentChars* = 12

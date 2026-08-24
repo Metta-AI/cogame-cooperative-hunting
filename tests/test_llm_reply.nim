@@ -201,6 +201,11 @@ block observationIsBounded:
     "none" in sim.legalTargets(0))
   check("the strategy block is rune-capped",
     observation.runeLen < 4000)
+  check("the whole observation is inside its 2000-rune bound",
+    observation.runeLen <= MaxObservationRunes)
+  check("the observation still carries the reply contract after the cap",
+    "LEGAL TARGETS:" in observation and "BLOCKED TILES" in observation and
+    "YOUR NOTE:" in observation)
   let systemPrompt = systemPromptFor(prompt)
   check("the system prompt demands a leading brace",
     "MUST begin with the character {" in systemPrompt)
