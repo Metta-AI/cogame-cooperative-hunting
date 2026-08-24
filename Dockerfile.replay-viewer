@@ -1,0 +1,59 @@
+# Builds the static wasm replay viewer with a pinned Nim + emsdk toolchain.
+# Used by tools/build_replay_viewer.sh (the `coworld build` hook) because
+# neither the sandbox nor the CI runner has emcc. The output is
+# architecture-neutral WebAssembly even though this reproducible toolchain
+# container runs as linux/amd64.
+FROM emscripten/emsdk:4.0.15 AS replay-viewer-builder
+
+RUN apt-get update && \
+  apt-get install -y --no-install-recommends ca-certificates curl git && \
+  rm -rf /var/lib/apt/lists/* && \
+  curl -fsSL \
+    -o /usr/local/bin/nimby \
+    https://github.com/treeform/nimby/releases/download/0.1.27/nimby-Linux-X64 && \
+  echo "3b3084394bd26b09f84a3f82389f075221c8784893238390939d71dd66ac9e8b  /usr/local/bin/nimby" | sha256sum -c - && \
+  chmod +x /usr/local/bin/nimby && \
+  nimby use 2.2.4
+
+ENV PATH="/root/.nimby/nim/bin:$PATH"
+
+WORKDIR /workspace/cooperative-hunting
+COPY nimby.lock .
+RUN nimby --global sync nimby.lock
+
+COPY . .
+# The committed nim.cfg (if any) pins the author's machine paths; rebuild it
+# from this container's synced package tree, exactly as the game Dockerfile
+# does, so the wasm module compiles against the same sources.
+RUN rm -f nim.cfg && \
+  for pkg in /root/.nimby/pkgs/*; do \
+    if [ -d "$pkg/src" ]; then echo "--path:\"$pkg/src\"" >> nim.cfg; \
+    else echo "--path:\"$pkg\"" >> nim.cfg; fi; \
+  done && \
+  echo '--path:"src"' >> nim.cfg && \
+  nim c --hints:off -d:emscripten replay-viewer/cooperative_hunting_replay.nim && \
+  cp client/broadcast_core.js replay-viewer/dist/broadcast_core.js && \
+  cp client/chrome_common.js replay-viewer/dist/chrome_common.js && \
+  cp replay-viewer/static_replay.js replay-viewer/dist/static_replay.js && \
+  cp replay-viewer/static_replay_worker.js \
+    replay-viewer/dist/static_replay_worker.js && \
+  sed -e 's|<!-- CHROME_COMMON -->|<script src="./chrome_common.js"></script>|' \
+      -e 's|<!-- BROADCAST_CORE -->|<script src="./static_replay.js"></script>|' \
+    client/replay_broadcast.html > replay-viewer/dist/index.html && \
+  rm -rf replay-viewer/dist/nimcache && \
+  test -s replay-viewer/dist/cooperative_hunting_replay.wasm && \
+  test -s replay-viewer/dist/cooperative_hunting_replay.js && \
+  test -f replay-viewer/dist/cooperative_hunting_replay.data && \
+  test -s replay-viewer/dist/static_replay.js && \
+  test -s replay-viewer/dist/static_replay_worker.js && \
+  test -s replay-viewer/dist/index.html && \
+  test -s replay-viewer/dist/chrome_common.js && \
+  test -s replay-viewer/dist/broadcast_core.js && \
+  grep -q 'window.ChromeCommon' replay-viewer/dist/chrome_common.js && \
+  grep -q 'window.BroadcastCore' replay-viewer/dist/broadcast_core.js && \
+  grep -q 'chrome_common.js' replay-viewer/dist/index.html && \
+  grep -q 'static_replay.js' replay-viewer/dist/index.html && \
+  grep -q 'static_replay_worker.js' replay-viewer/dist/static_replay.js && \
+  grep -q 'coworld-replay' replay-viewer/dist/static_replay.js && \
+  ! grep -q '<!-- BROADCAST_CORE -->' replay-viewer/dist/index.html && \
+  ! grep -q '<!-- CHROME_COMMON -->' replay-viewer/dist/index.html

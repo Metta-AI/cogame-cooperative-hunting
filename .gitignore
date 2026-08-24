@@ -1,0 +1,10 @@
+nimcache/
+dist/
+*.exe
+/cooperative_hunting
+/cooperative_hunting_player
+nim.cfg
+replay-viewer/dist/
+node_modules/
+viewer-smoke.png
+viewer-smoke.json

@@ -1,0 +1,7 @@
+services:
+  cooperative_hunting:
+    image: coworld-cooperative-hunting:latest
+    platform: linux/amd64
+    build:
+      context: .
+      network: host

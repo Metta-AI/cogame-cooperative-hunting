@@ -1,0 +1,33 @@
+[
+  {
+    "name": "cooperative-hunting-pack-caller",
+    "run": "/bin/cooperative-hunting-player",
+    "env": {
+      "PLAYER_PROMPT": "Commit to the biggest animal your visible party can actually take. Name the allies you need in \"with\" and take the side you name in \"side\"; do not switch targets while a ring is forming.",
+      "USE_BEDROCK": "true"
+    }
+  },
+  {
+    "name": "cooperative-hunting-quartermaster",
+    "run": "/bin/cooperative-hunting-player",
+    "env": {
+      "PLAYER_PROMPT": "Watch energy first. Below 60 energy take rabbits and recharge; above it, join whichever big animal already has the most sides taken and hold the side you claimed.",
+      "USE_BEDROCK": "true"
+    },
+    "player": "ply_bac48eb1-662e-44f8-973d-f3e016dccf5d"
+  },
+  {
+    "name": "cooperative-hunting-biggame",
+    "run": "/bin/cooperative-hunting-player",
+    "env": {
+      "PLAYER_SCRIPTED": "big_game_hunter"
+    }
+  },
+  {
+    "name": "cooperative-hunting-sidekick",
+    "run": "/bin/cooperative-hunting-player",
+    "env": {
+      "PLAYER_SCRIPTED": "sidekick"
+    }
+  }
+]

@@ -1,0 +1,608 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Metta-AI/coworld/main/src/coworld/coworld_manifest_schema.json",
+  "tags": [
+    "coordination",
+    "multi-agent",
+    "grid",
+    "stag-hunt",
+    "assurance-game",
+    "real-time",
+    "llm-driven",
+    "six-player"
+  ],
+  "episode_timeout_minutes": 20,
+  "game": {
+    "name": "cooperative_hunting",
+    "owner": "daveey@softmax.com",
+    "description": "Six hunters share a 32x32 tile forest. A rabbit falls to one hunter, a boar to two on perpendicular sides, a stag to two on opposite sides, a moose to any three and an elephant only to all four at once -- and everyone on a side when it falls scores the full value. Four variants turn the same capture predicate into cooperative mining, level-based foraging and an asymmetric predator-prey hunt.",
+    "runnable": {
+      "type": "game",
+      "image": "{{COOPERATIVE_HUNTING_IMAGE}}",
+      "run": [
+        "/bin/cooperative-hunting",
+        "--address:0.0.0.0",
+        "--port:8080"
+      ],
+      "env": {
+        "ANTHROPIC_API_KEY_URI": "secret://coworld/cooperative-hunting/anthropic_api_key"
+      },
+      "source_url": "https://github.com/Metta-AI/cogame-cooperative-hunting/tree/main"
+    },
+    "replay_viewer": {
+      "bundle": "static-replay-viewer"
+    },
+    "config_schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tokens",
+        "players",
+        "num_agents"
+      ],
+      "properties": {
+        "tokens": {
+          "description": "One connection token per seat, injected by the runner and indexed by slot.",
+          "type": "array",
+          "minItems": 6,
+          "maxItems": 6,
+          "items": {
+            "type": "string",
+            "minLength": 0
+          }
+        },
+        "players": {
+          "description": "One display-name object per seat, indexed by slot. Display names are spectator-side only; hunters see Cog-A..Cog-F.",
+          "type": "array",
+          "minItems": 6,
+          "maxItems": 6,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name"
+            ],
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        },
+        "num_agents": {
+          "description": "Hunter seats. Pinned to 6: four is the largest coalition the world requires and the two spare seats are what keep the assurance tension alive.",
+          "type": "integer",
+          "minimum": 6,
+          "maximum": 6,
+          "default": 6
+        },
+        "seed": {
+          "description": "Pins the map, the animal spawns, the seat alias permutation and every AI roll. Round n re-rolls with seed + n.",
+          "type": "integer",
+          "minimum": 0,
+          "default": 5743127
+        },
+        "variant": {
+          "description": "Which capture rule and furniture set the round uses.",
+          "type": "string",
+          "enum": [
+            "staghunt",
+            "coop-mining",
+            "lbf",
+            "predator-prey"
+          ],
+          "default": "staghunt"
+        },
+        "rounds": {
+          "description": "Rounds per episode. Each is followed by a 40-tick round card.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8,
+          "default": 3
+        },
+        "ticksPerRound": {
+          "description": "Simulation ticks of play in each round, before the round card.",
+          "type": "integer",
+          "minimum": 60,
+          "maximum": 4800,
+          "default": 960
+        },
+        "tickHz": {
+          "description": "Simulation ticks per second of wall clock. Every balance constant is in ticks, so this only changes how fast the episode plays out.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 60,
+          "default": 8
+        },
+        "planIntervalTicks": {
+          "description": "Ticks between LLM planning turns; all prompt seats are asked as one parallel batch.",
+          "type": "integer",
+          "minimum": 8,
+          "maximum": 2400,
+          "default": 120
+        },
+        "planTimeoutSeconds": {
+          "description": "Deadline for one planning batch. The simulation never waits on it: hunters keep executing their previous plan.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 60,
+          "default": 12
+        },
+        "playBudgetSeconds": {
+          "description": "Wall-clock guard. Past it the episode settles immediately with reason 'deadline' and the scores as they stand.",
+          "type": "integer",
+          "minimum": 30,
+          "maximum": 1200,
+          "default": 660
+        },
+        "player_connect_timeout_seconds": {
+          "description": "Bounded wait for seats to connect before the episode starts anyway.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 600,
+          "default": 120
+        },
+        "maxOutputTokens": {
+          "description": "Output token cap for one plan request. 400 truncates the reply before the JSON closes.",
+          "type": "integer",
+          "minimum": 128,
+          "maximum": 4096,
+          "default": 900
+        },
+        "model": {
+          "description": "Model id for the direct-Anthropic transport. The Bedrock sidecar picks from its own haiku-first candidate list instead.",
+          "type": "string",
+          "minLength": 1,
+          "default": "claude-haiku-4-5"
+        },
+        "focus": {
+          "description": "Local balance-iteration mode. 'elephant' spawns only elephants next to the party. Never set by a shipped variant.",
+          "type": "string",
+          "enum": [
+            "",
+            "elephant"
+          ],
+          "default": ""
+        }
+      }
+    },
+    "results_schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "required": [
+        "names",
+        "aliases",
+        "scores",
+        "reason"
+      ],
+      "properties": {
+        "names": {
+          "description": "Real policy name per seat, in slot order.",
+          "type": "array",
+          "minItems": 6,
+          "maxItems": 6,
+          "items": {
+            "type": "string"
+          }
+        },
+        "aliases": {
+          "description": "In-game alias per seat (Cog-A..Cog-F).",
+          "type": "array",
+          "minItems": 6,
+          "maxItems": 6,
+          "items": {
+            "type": "string"
+          }
+        },
+        "kinds": {
+          "description": "'prompt' or 'scripted' per seat.",
+          "type": "array",
+          "minItems": 6,
+          "maxItems": 6,
+          "items": {
+            "type": "string"
+          }
+        },
+        "scores": {
+          "description": "Cumulative score per seat across all rounds. Higher is better; never negative.",
+          "type": "array",
+          "minItems": 6,
+          "maxItems": 6,
+          "items": {
+            "type": "integer"
+          }
+        },
+        "energy": {
+          "description": "Final energy per seat.",
+          "type": "array",
+          "minItems": 6,
+          "maxItems": 6,
+          "items": {
+            "type": "integer"
+          }
+        },
+        "fallbacks": {
+          "description": "Planning turns on which this seat fell back to its scripted baseline.",
+          "type": "array",
+          "minItems": 6,
+          "maxItems": 6,
+          "items": {
+            "type": "integer"
+          }
+        },
+        "disconnected": {
+          "description": "Whether each seat's socket closed before the episode ended.",
+          "type": "array",
+          "minItems": 6,
+          "maxItems": 6,
+          "items": {
+            "type": "boolean"
+          }
+        },
+        "rounds": {
+          "description": "Per-round score arrays, one array of num_agents integers per round.",
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 8,
+          "items": {
+            "description": "Scores for one round.",
+            "type": "array",
+            "minItems": 6,
+            "maxItems": 6,
+            "items": {
+              "type": "integer"
+            }
+          }
+        },
+        "catches": {
+          "description": "Per seat, the [rabbit, boar, stag, moose, elephant] capture counts.",
+          "type": "array",
+          "minItems": 6,
+          "maxItems": 6,
+          "items": {
+            "type": "array",
+            "minItems": 5,
+            "maxItems": 5,
+            "items": {
+              "type": "integer"
+            }
+          }
+        },
+        "co_captures": {
+          "description": "num_agents x num_agents matrix of shared captures between seats.",
+          "type": "array",
+          "minItems": 6,
+          "maxItems": 6,
+          "items": {
+            "description": "Shared captures with each other seat.",
+            "type": "array",
+            "minItems": 6,
+            "maxItems": 6,
+            "items": {
+              "type": "integer"
+            }
+          }
+        },
+        "llm_requests": {
+          "description": "Total plan requests issued to the model during the episode.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "variant": {
+          "description": "Variant that was played.",
+          "type": "string"
+        },
+        "seed": {
+          "description": "Seed the episode ran with.",
+          "type": "integer"
+        },
+        "final_tick": {
+          "description": "Tick the episode settled at.",
+          "type": "integer"
+        },
+        "reason": {
+          "description": "Why the episode ended.",
+          "type": "string",
+          "enum": [
+            "complete",
+            "deadline",
+            "no_players"
+          ]
+        }
+      }
+    },
+    "protocols": {
+      "player": {
+        "type": "text",
+        "value": "bitworld sprite_v1 over a websocket, plus exactly two additive messages. Server->client: 0x01 sprite, 0x02 object, 0x03 remove, 0x04 clear, 0x05 viewport, 0x06 layer, 0x07 identity, and 0x91 <u16 len> <UTF-8 JSON plan> to seats that registered a prompt. Client->server: the 2-byte input packet [0x84, mask] (bit 0 up, 1 down, 2 left, 3 right, 4 A, 5 B, 6 select), and once on connect 0x90 <u16 len> <UTF-8 JSON> carrying either {\"kind\":\"prompt\",\"prompt\":\"...\"} or {\"kind\":\"scripted\",\"baseline\":\"...\"}. A malformed registration is treated as the big_game_hunter baseline, never as a disconnect. See the protocol doc page for byte layouts."
+      },
+      "global": {
+        "type": "text",
+        "value": "The same sprite_v1 stream at world scale (384x384 px viewport, no 0x07 identity packet), plus the broadcast chrome carried as the label of a reserved 1x1 sprite, id 4090, re-emitted every tick. That label is UTF-8 JSON of at most 4 KB with tick, round, rounds, ticksPerRound, phase, variant, reason, seats[], feed[], beats[] and final."
+      }
+    },
+    "docs": {
+      "readme": {
+        "type": "text",
+        "value": "# Cooperative Hunting\n\n**Six hunters share a 32x32 tile forest and take animals by standing on the\nright cardinal sides of them at the same moment.** A rabbit falls to one\nhunter. A boar needs two hunters on perpendicular sides, a stag two on\nopposite sides, a moose any three, an elephant all four. Everyone who was on\na side when the animal fell scores the full value.\n\nThat is the whole game, and it is the assurance problem in a forest: rabbits\nare a guaranteed +1, an elephant is +18 *each* -- but only if four hunters\ncommit to the same animal on the same tick. A half-formed ring gets trampled\n(-30 energy) or gored (-10 energy and a shove) and scores nothing.\n\n## Variants\n\n| id | rounds x ticks | what is different |\n| --- | --- | --- |\n| `staghunt` | 3 x 960 | the base world |\n| `coop-mining` | 3 x 960 | no animals; iron is solo, gold needs two hunters within a 3-tick window |\n| `lbf` | 3 x 960 | hunters and food carry levels; adjacent levels must sum to the food's level; reward is split |\n| `predator-prey` | 4 x 720 | three seats hunt, three forage; roles alternate each round; tall grass hides foragers |\n\n## Scoring\n\n`results.scores[slot]` is the sum over rounds of everything that seat's\ncaptures were worth. Higher is better and no term is ever negative -- trample\nand gore cost energy, never score. The league ranks by that number.\n\n## Policies\n\nBoth champion policies are prompts. A seat registers either a `PLAYER_PROMPT`\n(the game composes an observation every 15 s, asks the model what animal to\ncommit to and from which side, and a controller walks the hunter there tile by\ntile) or a `PLAYER_SCRIPTED=<name>` baseline (one of eight compiled hunters\nshipped in the same image). Same image, same entrypoint, switched by env.\n\n## FAQ\n\n**How do I connect a player?** Read `COWORLD_PLAYER_WS_URL` from the\nenvironment and speak the sprite_v1 player protocol; see\n`game.protocols.player` and the protocol page.\n\n**When does my player exit?** When the episode ends and the game closes the\nconnection. Catch the error on a dead socket and exit 0.\n"
+      },
+      "pages": [
+        {
+          "id": "rules.md",
+          "title": "Cooperative Hunting Rules",
+          "content": {
+            "type": "text",
+            "value": "# Cooperative Hunting Rules\n\nSix hunters share a 32x32 tile forest (12 px tiles). The border ring is rock;\n11 % of the interior is obstacles, half tree and half rock, with a 7x7 block\nat the centre and six random 3x3 blocks cleared. The map is generated once per\nepisode from `seed`; each round re-rolls the animals with `seed + roundIndex`\nbut keeps the same map.\n\n## Hunters\n\nStart at a free tile within 4 tiles of the centre with `energy = 120` and\n`score = 0`. Energy caps at 200; passive recharge is +1 every 18 ticks but\nonly up to 100. Moving costs 2 energy and sets a 5-tick move cooldown. A\nhunter with fewer than 2 energy cannot move. There is no elimination and no\nnegative score.\n\n## Capture\n\n| animal | hunters needed | sides | score | energy |\n| --- | --- | --- | --- | --- |\n| rabbit | 1 | any one side | 1 | 15 |\n| boar | 2 | two perpendicular sides | 3 | 90 |\n| stag | 2 | two opposite sides | 5 | 60 |\n| moose | 3 | any three sides | 10 | 140 |\n| elephant | 4 | all four sides | 18 | 220 |\n\nThe reward is paid **in full to every participant** (except in `lbf`, where\nscore is split). A capture leaves a corpse for 48 ticks and puts a 20-tick\nyellow kill glow on the killers.\n\n## Animals\n\nPopulations are maintained per kind, and a kind only spawns once the connected\nseat count is at least its coalition size: rabbits 12, boars 6, stags 6, moose\n3, elephants 2. Spawns are 60 ticks apart, dropping to 3 while a population is\nfour or more below target.\n\nAnimals flee within Chebyshev distance 3, at 75/50/25 % by distance, scaled per\nkind. A moose cardinally adjacent to a hunter gores it 30 % of the time (5 %\ndiagonally): -10 energy and a one-tile shove. An elephant that steps onto a\nhunter tramples it for -30 energy and slides two tiles through -- and if the\nfar tile is blocked it stays put, which is exactly why a complete four-side\nring can hold one.\n\n## Turn order\n\nEach tick, in this order: ingest input; distribute plans; hunter phase in slot\norder; animal phase in prey order; stamp occupied sides; resolve captures;\nresolve tags and forages (`predator-prey`); housekeeping; emit frames; round\nbookkeeping; deadline guard.\n\n## Ending\n\n`results.reason` is one of exactly three values: `complete` (all rounds ran),\n`deadline` (the wall-clock guard fired; the current round is scored as it\nstands and the episode settles), or `no_players` (nobody connected inside the\nconnect timeout; all-zero scores). The game always exits 0.\n"
+          }
+        },
+        {
+          "id": "variants.md",
+          "title": "The Four Variants",
+          "content": {
+            "type": "text",
+            "value": "# Variants\n\nAll four variants are the same simulation with a different capture predicate\nand a little per-variant furniture. `num_agents` is 6 in every one.\n\n## `staghunt` -- 3 rounds x 960 ticks\n\nThe base world, unchanged. Capture rule `sides`.\n\n## `coop-mining` -- 3 rounds x 960 ticks\n\nNo animals. 18 iron nodes and 8 gold nodes, immobile, respawning on the same\n60-tick cadence at random free tiles.\n\n- **Iron:** one adjacent hunter on any side -> +1 score / +10 energy.\n- **Gold:** two *different* hunters on any two sides **within a 3-tick\n  window** -> +8 score / +40 energy each.\n\nThe window is the only new mechanic: the sim stamps `sideSeen[side] = (tick,\nslot)` and a side counts as occupied while `tick - sideSeen.tick <=\nwindowTicks - 1`. `windowTicks = 1` reproduces base staghunt exactly, so the\nbase game runs through the same code path.\n\n## `lbf` -- Level-Based Foraging, 3 rounds x 960 ticks\n\nEach seat gets `level = 1 + (slot mod 4)`, drawn as a digit over its head.\nFood items carry `level` 1..6, drawn the same way, with 14 items maintained.\nA pickup succeeds when the sum of the levels of the hunters cardinally\nadjacent to the food is at least the food's level.\n\nReward: `score = 2 x level`, `energy = 20 x level`. Score is **split**: each\nparticipant gets `floor(score / n)` and the integer remainder goes to the\nparticipant with the lowest slot. Energy is not split.\n\n## `predator-prey` -- 4 rounds x 720 ticks\n\nNo animals. Seats split by role each round:\n`role = hunter if (slot + roundIndex) mod 2 == 0 else forager`. With six seats\nand four rounds every seat hunts twice and forages twice, so the asymmetry\ncancels in the ranking.\n\n40 berry tiles and 120 tall-grass tiles are placed from the seed. A forager\nstanding on a berry tile consumes it at end of tick (+1 score, +12 energy;\nthe tile regrows after 90 ticks). Two hunters on opposite cardinal sides of a\nforager tag it: +6 score each, the forager loses 30 energy and respawns 24\nticks later near the map edge.\n\n**Tall grass hides foragers:** a forager on a tall-grass tile is not drawn in\na hunter's per-seat frame unless that hunter is within Chebyshev distance 2.\nIt is always in the global/replay stream, and the viewer carries a grass\nopacity toggle -- the spectator sees the ambush the hunter could not.\n"
+          }
+        },
+        {
+          "id": "protocol.md",
+          "title": "Player and Global Protocol",
+          "content": {
+            "type": "text",
+            "value": "# Protocol\n\n## Player protocol\n\nBase: **bitworld sprite_v1**, unchanged.\n\nServer -> client messages: `0x01` sprite, `0x02` object, `0x03` remove,\n`0x04` clear, `0x05` viewport, `0x06` layer, `0x07` identity.\n\nClient -> server: the 2-byte input packet `[0x84, mask]` (`0x00` is also\naccepted for the bitscreen_v1 header). Mask bits: 0 up, 1 down, 2 left,\n3 right, 4 A, 5 B, 6 select. At most one direction bit should be set; the\nserver reads them with priority up > down > left > right.\n\nTwo additive messages, and only two:\n\n### `0x90` client -> server, registration\n\nSent once immediately after connect.\n\n```\n0x90  <u16 len little-endian>  <len bytes UTF-8 JSON>     len <= 4096\n```\n\nBody is either\n\n```json\n{\"kind\": \"prompt\", \"prompt\": \"<= 1200 runes\"}\n```\n\nor\n\n```json\n{\"kind\": \"scripted\", \"baseline\": \"big_game_hunter\"}\n```\n\nA malformed, oversized or non-UTF-8 body is dropped and the seat is treated as\n`{\"kind\":\"scripted\",\"baseline\":\"big_game_hunter\"}`. It is never a disconnect.\n\n### `0x91` server -> client, plan\n\nSent **only** to seats that registered `kind: \"prompt\"`, at most once per\nplanning turn (every 120 ticks).\n\n```\n0x91  <u16 len little-endian>  <len bytes UTF-8 JSON>\n```\n\n```json\n{\"turn\": 7, \"intent\": \"hunt\", \"target\": \"stag@13,17\", \"side\": \"S\",\n \"with\": [\"Cog-A\"], \"say\": \"...\", \"src\": \"llm\"}\n```\n\n`src` is `llm` or `fallback:<cause>`. Scripted seats never receive it, because\nthe bundled bots' parsers reject unknown message types.\n\n## Global protocol\n\nThe same sprite_v1 stream at world scale (384x384 px viewport, no identity\npacket), plus the broadcast chrome smuggled as the **label of a reserved 1x1\nsprite, id 4090**, re-emitted every tick. The body is UTF-8 JSON of at most\n4 KB carrying `tick`, `round`, `rounds`, `ticksPerRound`, `phase`, `variant`,\n`reason`, `seats[]`, `feed[]`, `beats[]` and `final`.\n"
+          }
+        },
+        {
+          "id": "policies.md",
+          "title": "Fielding a Policy",
+          "content": {
+            "type": "text",
+            "value": "# Fielding a policy\n\nBoth entry points are the **same image** and the **same binary**,\n`/bin/cooperative-hunting-player`, switched by one environment variable.\n\n## `PLAYER_PROMPT` -- an LLM policy\n\nSet `PLAYER_PROMPT` to your strategy in plain words (up to 1200 runes) and\n`USE_BEDROCK=true`. The player registers the prompt with the game; the game\ncomposes one observation per prompt seat every 120 ticks (15 s), issues all\nprompt seats' requests as one parallel batch, and hands each seat back a plan.\nThe player's executor walks the hunter to the named side tile by tile until\nthe next plan.\n\nThe model must reply with a single JSON object beginning with `{`:\n\n| field | type | cap | rule |\n| --- | --- | --- | --- |\n| `intent` | enum | 12 chars | `hunt,assist,forage,rest,regroup,flee`; anything else becomes `hunt` |\n| `target` | string | 24 chars | must be in `LEGAL TARGETS` or `none`, else the reply is retried once |\n| `side` | enum | 3 chars | `N,S,E,W,any`; anything else becomes `any` |\n| `with` | string array | <= 3 items, 8 chars each | non-alias entries dropped |\n| `say` | free text | <= 120 runes | broadcast to spectators |\n| `note` | free text | <= 200 runes | private, handed back next turn |\n\nEvery free-text field is truncated on **rune** boundaries.\n\nAn unusable reply is retried exactly once with a hint; if that also fails the\nseat plays `PLAYER_FALLBACK_SCRIPTED` (default `big_game_hunter`) for that\nplanning window and a `fallback` event is written with its cause. With no\ncredentials at all the client disables itself at startup and makes zero\nnetwork calls -- the episode still completes with `reason: complete`.\n\n## `PLAYER_SCRIPTED` -- a compiled baseline\n\nSet `PLAYER_SCRIPTED` to one of `rabbiteer`, `nearest_hunter`, `stag_hunter`,\n`moose_hunter`, `elephant_hunter`, `big_game_hunter`, `sidekick`, `modeler`.\nThe seat never touches the LLM.\n\n## Anonymity\n\nIn-game every seat is `Cog-A` .. `Cog-F`, assigned by a seeded permutation of\nslots. Aliases are the only identifiers in prompts, plans, `with[]` and `say`\nlines. Real policy names exist only spectator-side: the replay's\n`seats[].name`, the viewer chrome and `results.names[]`.\n"
+          }
+        }
+      ]
+    }
+  },
+  "player": [
+    {
+      "id": "pack-caller",
+      "type": "player",
+      "name": "Pack Caller",
+      "description": "The reference prompt policy: an LLM decides which animal to commit to, from which side and with whom every 15 s, and a controller walks the hunter there tile by tile.",
+      "image": "{{COOPERATIVE_HUNTING_IMAGE}}",
+      "run": [
+        "/bin/cooperative-hunting-player"
+      ],
+      "env": {
+        "PLAYER_PROMPT": "Commit to the biggest animal your visible party can actually take. Name the allies you need in \"with\" and take the side you name in \"side\"; do not switch targets while a ring is forming. Take a rabbit only when nobody is close enough to help. If your energy is under 30, rest until it is back over 60."
+      },
+      "source_url": "https://github.com/Metta-AI/cogame-cooperative-hunting/tree/main"
+    },
+    {
+      "id": "big-game-hunter",
+      "type": "player",
+      "name": "Big Game Hunter",
+      "description": "Coalition-aware baseline: counts nearby allies, derives which animals are catchable at that coalition size, and picks the highest-reward catchable animal, distance-penalised.",
+      "image": "{{COOPERATIVE_HUNTING_IMAGE}}",
+      "run": [
+        "/bin/cooperative-hunting-player"
+      ],
+      "env": {
+        "PLAYER_SCRIPTED": "big_game_hunter"
+      },
+      "source_url": "https://github.com/Metta-AI/cogame-cooperative-hunting/tree/main"
+    },
+    {
+      "id": "sidekick",
+      "type": "player",
+      "name": "Sidekick",
+      "description": "Follows the nearest ally and takes the complementary flank of whatever that ally is standing next to.",
+      "image": "{{COOPERATIVE_HUNTING_IMAGE}}",
+      "run": [
+        "/bin/cooperative-hunting-player"
+      ],
+      "env": {
+        "PLAYER_SCRIPTED": "sidekick"
+      },
+      "source_url": "https://github.com/Metta-AI/cogame-cooperative-hunting/tree/main"
+    },
+    {
+      "id": "modeler",
+      "type": "player",
+      "name": "Modeler",
+      "description": "Expected-value bot: scores every animal by reward x learned per-ally cooperation probability x distance penalty.",
+      "image": "{{COOPERATIVE_HUNTING_IMAGE}}",
+      "run": [
+        "/bin/cooperative-hunting-player"
+      ],
+      "env": {
+        "PLAYER_SCRIPTED": "modeler"
+      },
+      "source_url": "https://github.com/Metta-AI/cogame-cooperative-hunting/tree/main"
+    }
+  ],
+  "variants": [
+    {
+      "id": "staghunt",
+      "name": "Stag Hunt",
+      "description": "The base forest: rabbits solo, boars and stags in pairs, moose in threes, elephants only with all four sides held at once. Three rounds of 960 ticks.",
+      "game_config": {
+        "players": [
+          {
+            "name": "Cog-A"
+          },
+          {
+            "name": "Cog-B"
+          },
+          {
+            "name": "Cog-C"
+          },
+          {
+            "name": "Cog-D"
+          },
+          {
+            "name": "Cog-E"
+          },
+          {
+            "name": "Cog-F"
+          }
+        ],
+        "num_agents": 6,
+        "tickHz": 8,
+        "variant": "staghunt",
+        "rounds": 3,
+        "ticksPerRound": 960,
+        "seed": 5743127
+      }
+    },
+    {
+      "id": "coop-mining",
+      "name": "Cooperative Mining",
+      "description": "No animals: 18 iron nodes are solo income and 8 gold nodes pay +8 each, but only when two different hunters touch two sides inside a three-tick window. Three rounds of 960 ticks.",
+      "game_config": {
+        "players": [
+          {
+            "name": "Cog-A"
+          },
+          {
+            "name": "Cog-B"
+          },
+          {
+            "name": "Cog-C"
+          },
+          {
+            "name": "Cog-D"
+          },
+          {
+            "name": "Cog-E"
+          },
+          {
+            "name": "Cog-F"
+          }
+        ],
+        "num_agents": 6,
+        "tickHz": 8,
+        "variant": "coop-mining",
+        "rounds": 3,
+        "ticksPerRound": 960,
+        "seed": 5743128
+      }
+    },
+    {
+      "id": "lbf",
+      "name": "Level-Based Foraging",
+      "description": "Hunters and food carry levels; a pickup lands when the adjacent hunters' levels sum to at least the food's level, and the reward is split between them. Three rounds of 960 ticks.",
+      "game_config": {
+        "players": [
+          {
+            "name": "Cog-A"
+          },
+          {
+            "name": "Cog-B"
+          },
+          {
+            "name": "Cog-C"
+          },
+          {
+            "name": "Cog-D"
+          },
+          {
+            "name": "Cog-E"
+          },
+          {
+            "name": "Cog-F"
+          }
+        ],
+        "num_agents": 6,
+        "tickHz": 8,
+        "variant": "lbf",
+        "rounds": 3,
+        "ticksPerRound": 960,
+        "seed": 5743129
+      }
+    },
+    {
+      "id": "predator-prey",
+      "name": "Predator & Prey",
+      "description": "Three seats hunt and three forage, swapping roles every round; tall grass hides a forager from a hunter more than two tiles away. Four rounds of 720 ticks.",
+      "game_config": {
+        "players": [
+          {
+            "name": "Cog-A"
+          },
+          {
+            "name": "Cog-B"
+          },
+          {
+            "name": "Cog-C"
+          },
+          {
+            "name": "Cog-D"
+          },
+          {
+            "name": "Cog-E"
+          },
+          {
+            "name": "Cog-F"
+          }
+        ],
+        "num_agents": 6,
+        "tickHz": 8,
+        "variant": "predator-prey",
+        "rounds": 4,
+        "ticksPerRound": 720,
+        "seed": 5743130
+      }
+    }
+  ],
+  "certification": {
+    "game_config": {
+      "players": [
+        {
+          "name": "Cog-A"
+        },
+        {
+          "name": "Cog-B"
+        },
+        {
+          "name": "Cog-C"
+        },
+        {
+          "name": "Cog-D"
+        },
+        {
+          "name": "Cog-E"
+        },
+        {
+          "name": "Cog-F"
+        }
+      ],
+      "num_agents": 6,
+      "variant": "staghunt",
+      "rounds": 2,
+      "ticksPerRound": 480,
+      "tickHz": 8,
+      "seed": 5743127
+    },
+    "players": [
+      {
+        "player_id": "pack-caller"
+      },
+      {
+        "player_id": "pack-caller"
+      },
+      {
+        "player_id": "big-game-hunter"
+      },
+      {
+        "player_id": "big-game-hunter"
+      },
+      {
+        "player_id": "sidekick"
+      },
+      {
+        "player_id": "modeler"
+      }
+    ]
+  }
+}
