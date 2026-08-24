@@ -143,8 +143,20 @@ GAME_CSS = """
   font-family: var(--pixfont);
   font-size: calc(9 * var(--u));
   line-height: 1.1;
-  min-width: 0;
-  flex: 1 1 0;
+  /* NOT `min-width: 0`: that let three plates share a 640 px half by
+     shrinking BELOW the width their own furniture needs, and
+     `#scorebug .plates { overflow: hidden }` then sliced the overflow off --
+     at 1280 px every plate ran 259 px of content in a 153 px box and the
+     last seat's score was cut by the frame edge (viewer-smoke.png, run
+     32774674232). The floor is the room the chip, the alias, the name at
+     its own 3.2em floor, the score, the energy bar and the badge actually
+     take; a plate that cannot have it WRAPS onto a second line instead (the
+     band grows and relayout reports the new --topband). So the score is
+     always whole and only the name ellipsizes, which is what a label is
+     allowed to do. Gated per plate by
+     tools/ci/fixtures/fixture_chrome_driver.js. */
+  min-width: calc(210 * var(--u));
+  flex: 1 1 calc(210 * var(--u));
 }
 .hplate.dc { opacity: .42; filter: grayscale(1); }
 .hplate .chip {

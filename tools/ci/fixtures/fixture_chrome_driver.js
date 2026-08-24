@@ -114,6 +114,53 @@
     });
   }
 
+  function measurePlates(size) {
+    // The scorebug is chrome, not model text -- but it is the one band that
+    // carries a policy NAME and a SCORE at every width, and the six-hunter
+    // row is this game's own rewrite of the starter's two-plate column. A
+    // name may ellipsize (checklist item 15: ellipsis is a design choice
+    // for labels); a SCORE may not be sliced, and no plate may spill out of
+    // the band, which `#scorebug .plates { overflow: hidden }` would hide.
+    var stage = box(byId('stage'));
+    var scorebug = box(byId('scorebug'));
+    var plates = Array.prototype.slice.call(
+      document.querySelectorAll('.hplate'));
+    notes.plates = plates.length;
+    if (plates.length !== 6) {
+      failures.push(size + ': the scorebug rendered ' + plates.length +
+        ' plates for six seats');
+    }
+    plates.forEach(function (plate, index) {
+      var name = size + ' plate ' + index;
+      // Its own column (#plates-l / #plates-r carry three each) clips with
+      // `overflow: hidden`, and the band is what the board sizes against.
+      var edges = outsideOf(box(plate), box(plate.parentElement));
+      if (edges.length) {
+        failures.push(name + ' spills out of its half of the scorebug (' +
+          edges.join('+') + '), which then clips it');
+      }
+      if (outsideOf(box(plate), scorebug).length) {
+        failures.push(name + ' is drawn outside the scorebug band');
+      }
+      if (plate.scrollWidth > plate.clientWidth + TOL) {
+        failures.push(name + ' overflows its own box: scrollWidth ' +
+          plate.scrollWidth + ' > clientWidth ' + plate.clientWidth);
+      }
+      ['.plate-alias', '.plate-score', '.plate-energy'].forEach(function (sel) {
+        var el = plate.querySelector(sel);
+        if (!el || window.getComputedStyle(el).display === 'none') return;
+        var off = outsideOf(box(el), box(plate));
+        if (off.length) {
+          failures.push(name + "'s " + sel + ' is drawn outside its plate (' +
+            off.join('+') + '), so it is sliced by the plate beside it');
+        }
+        if (outsideOf(box(el), stage).length) {
+          failures.push(name + "'s " + sel + ' is outside the frame');
+        }
+      });
+    });
+  }
+
   function measureEndcard(size) {
     var stage = box(byId('stage'));
     var transport = box(byId('transport'));
@@ -232,6 +279,7 @@
           }
         });
       }).then(function () {
+        measurePlates(size);
         measureFeed(size, expected);
         // Pass 2: the same frame with the episode over, so the end-card and
         // its full-cap standings are measured too. `feed` is empty because
