@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Cooperative Hunting — worst-case renderer fixture</title>
+<!--
+  The worst-case renderer fixture (acceptance checklist item 15).
+
+  Every replay CI can produce carries zero LLM text: docker_smoke.sh runs
+  without an ANTHROPIC_API_KEY, so every seat falls back to its scripted
+  baseline and no seat ever speaks. The chrome that exists only to show what
+  a model said -- the `say` feed line and the fallback line -- is therefore
+  drawn by nothing the other viewer_smoke step loads.
+
+  This page loads the REAL chrome (client/replay_broadcast.html spliced with
+  the real starter chrome_common.js, exactly as Dockerfile.replay-viewer
+  splices the shipped bundle; only the wasm transport is stubbed) in three
+  frames at three widths, hands each one the same worst-case chrome label --
+  a full-cap 120-rune remark on every seat at once, six 64-rune policy names,
+  a beat list filled to the 4 KB label cap, the end-card open -- and fails
+  unless every one of those strings is still full-length and inside its
+  frame.
+
+  It sets `data-replay-loaded="true"` only when all three frames pass, and
+  `data-replay-error` with the first failure otherwise, so
+  `viewer_smoke.mjs --strict-text-bounds` turns a clipped remark red.
+-->
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #120d09; color: #f2e8d8; font: 13px/1.5 system-ui, sans-serif; }
+  #status { padding: 6px 10px; white-space: pre-wrap; font-variant-numeric: tabular-nums; }
+  .frame { border: 1px solid #4a2e21; margin: 0 0 8px 0; display: block; }
+  .cap { padding: 2px 10px; color: #b8ac98; }
+</style>
+</head>
+<body>
+<div id="status">worst-case renderer fixture: starting</div>
+<div id="frames"></div>
+<script>
+(function () {
+  'use strict';
+
+  // Three widths: the ~360 px featured-match embed, a mid box, and the
+  // 1280 px broadcast frame. Each iframe is a real viewport, so the page's
+  // own `@media (max-width: 640px)` rules apply exactly as they do in
+  // production -- which a resized element inside one viewport would not do.
+  var SIZES = [
+    { w: 360, h: 640 },
+    { w: 640, h: 520 },
+    { w: 1280, h: 700 }
+  ];
+  var TIMEOUT_MS = 60000;
+
+  var params = new URLSearchParams(window.location.search);
+  // viewer_smoke.mjs mounts the file passed as --replay at the server root
+  // and hands it to the page as ?replay=; here that file is the worst-case
+  // chrome label.
+  var stateUrl = params.get('replay') || './worst_case_chrome.json';
+
+  var status = document.getElementById('status');
+  var host = document.getElementById('frames');
+  var frames = [];
+
+  SIZES.forEach(function (size) {
+    var cap = document.createElement('div');
+    cap.className = 'cap';
+    cap.textContent = size.w + ' x ' + size.h;
+    host.appendChild(cap);
+    var frame = document.createElement('iframe');
+    frame.className = 'frame';
+    frame.width = size.w;
+    frame.height = size.h;
+    frame.setAttribute('scrolling', 'no');
+    frame.src = './chrome.html?state=' + encodeURIComponent(stateUrl);
+    host.appendChild(frame);
+    frames.push({ size: size, el: frame });
+  });
+
+  function collect() {
+    var reports = [];
+    for (var i = 0; i < frames.length; i += 1) {
+      var win = null;
+      try { win = frames[i].el.contentWindow; } catch (error) { win = null; }
+      // Deliberately NOT postMessage: viewer_smoke.mjs shadows `window.parent`
+      // in every frame to catch the coworld-replay bridge, so a child that
+      // posts upward reaches the harness process, not this page. Same-origin
+      // property access is the channel that survives.
+      var report = win && win.__fixtureReport;
+      if (!report) return null;
+      reports.push(report);
+    }
+    return reports;
+  }
+
+  function finish(reports) {
+    var failures = [];
+    var lines = [];
+    reports.forEach(function (report, index) {
+      var size = SIZES[index].w + 'x' + SIZES[index].h;
+      report.failures.forEach(function (failure) { failures.push(failure); });
+      var widest = 0;
+      var shortest = 1e9;
+      report.rows.forEach(function (row) {
+        widest = Math.max(widest, row.width);
+        shortest = Math.min(shortest, row.runes);
+      });
+      lines.push(size + ': ' + report.rows.length + ' full-cap rows, ' +
+        'shortest ' + (report.rows.length ? shortest : 0) + ' runes, ' +
+        'widest ' + widest + ' px, font ' +
+        (report.rows.length ? report.rows[0].font_size : 'n/a') + ', ' +
+        'end-card rows ' + report.notes.endcard_rows + ', ' +
+        'label ' + report.notes.state_bytes + ' B / ' +
+        report.notes.beats + ' beats, ' +
+        (report.ok ? 'OK' : 'FAILED'));
+    });
+    status.textContent = 'worst-case renderer fixture\n' + lines.join('\n') +
+      (failures.length ? '\nFAILURES:\n  ' + failures.join('\n  ') : '\nall frames pass');
+    if (failures.length) {
+      document.documentElement.setAttribute('data-replay-error',
+        failures.length + ' worst-case failure(s): ' + failures[0]);
+      return;
+    }
+    document.documentElement.setAttribute('data-replay-loaded', 'true');
+  }
+
+  var started = Date.now();
+  (function poll() {
+    var reports = collect();
+    if (reports) { finish(reports); return; }
+    if (Date.now() - started > TIMEOUT_MS) {
+      status.textContent = 'worst-case renderer fixture: a frame never reported';
+      document.documentElement.setAttribute('data-replay-error',
+        'a worst-case frame never reported within ' + (TIMEOUT_MS / 1000) + 's');
+      return;
+    }
+    setTimeout(poll, 200);
+  })();
+})();
+</script>
+</body>
+</html>

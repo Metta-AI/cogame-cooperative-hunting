@@ -1,0 +1,273 @@
+{
+  "tick": 2880,
+  "rtick": 960,
+  "round": 3,
+  "rounds": 3,
+  "ticksPerRound": 960,
+  "phase": "play",
+  "variant": "predator-prey",
+  "reason": null,
+  "seats": [
+    {
+      "slot": 0,
+      "alias": "Cog-A",
+      "name": "cooperative-hunting-pack-caller-champion-two-anthropic-claude-ha",
+      "kind": "prompt",
+      "color": 0,
+      "score": 1888,
+      "energy": 200,
+      "level": 4,
+      "role": "forager",
+      "dc": false
+    },
+    {
+      "slot": 1,
+      "alias": "Cog-B",
+      "name": "cooperative-hunting-quartermaster-champion-two-anthropic-claude-",
+      "kind": "prompt",
+      "color": 1,
+      "score": 1889,
+      "energy": 199,
+      "level": 4,
+      "role": "hunter",
+      "dc": false
+    },
+    {
+      "slot": 2,
+      "alias": "Cog-C",
+      "name": "cooperative-hunting-biggame-scripted-baseline-big-game-hunter-fi",
+      "kind": "scripted",
+      "color": 2,
+      "score": 1890,
+      "energy": 198,
+      "level": 4,
+      "role": "forager",
+      "dc": false
+    },
+    {
+      "slot": 3,
+      "alias": "Cog-D",
+      "name": "cooperative-hunting-sidekick-scripted-baseline-sidekick-seat-fil",
+      "kind": "scripted",
+      "color": 3,
+      "score": 1891,
+      "energy": 197,
+      "level": 4,
+      "role": "hunter",
+      "dc": false
+    },
+    {
+      "slot": 4,
+      "alias": "Cog-E",
+      "name": "cooperative-hunting-modeler-scripted-baseline-modeler-seat-fille",
+      "kind": "scripted",
+      "color": 4,
+      "score": 1892,
+      "energy": 196,
+      "level": 4,
+      "role": "forager",
+      "dc": false
+    },
+    {
+      "slot": 5,
+      "alias": "Cog-F",
+      "name": "cooperative-hunting-rabbiteer-scripted-baseline-rabbiteer-seat-f",
+      "kind": "scripted",
+      "color": 5,
+      "score": 1893,
+      "energy": 195,
+      "level": 4,
+      "role": "hunter",
+      "dc": true
+    }
+  ],
+  "feed": [
+    {
+      "t": 2870,
+      "kind": "say",
+      "text": "Cog-A: I will hold the north side of the stag and wait for Cog-D to reach the south side before either of us steps in, W"
+    },
+    {
+      "t": 2871,
+      "kind": "say",
+      "text": "Cog-B: 我守北面，你去南面，等我们两个都就位了再一起进攻鹿，不要单独行动。鹿猪熊龟鹿猪熊龟鹿猪熊龟鹿猪熊龟鹿猪熊龟鹿猪熊龟鹿猪熊龟鹿猪熊龟鹿猪熊龟鹿猪熊龟鹿猪熊龟鹿猪熊龟鹿猪熊龟鹿猪熊龟鹿猪熊龟鹿猪熊龟鹿猪熊龟鹿猪熊龟鹿猪熊龟鹿猪熊龟"
+    },
+    {
+      "t": 2872,
+      "kind": "say",
+      "text": "Cog-C: Stag at 14,9 needs north and south at once — I am two tiles out, do not spook it, hold until I say go 🦌🦌🐺🦌🐺🦌🐺🦌🐺🦌🐺"
+    },
+    {
+      "t": 2873,
+      "kind": "say",
+      "text": "Cog-D: 🦌 北南夹击，我已经到位，请不要提前踩进去，否则鹿会逃跑而我们两个都拿不到分。北南东西北南东西北南东西北南东西北南东西北南东西北南东西北南东西北南东西北南东西北南东西北南东西北南东西北南东西北南东西北南东西北南东西北南东西北南"
+    },
+    {
+      "t": 2874,
+      "kind": "say",
+      "text": "Cog-E: WWWWW MMMMM WWWWW MMMMM taking the west side of the moose, we need a third body or nobody scores anything at allW"
+    },
+    {
+      "t": 2875,
+      "kind": "fallback",
+      "text": "Cog-F fell back to big_game_hunter — no_credentials—no_credentials—timeout—parse—no_credentials—timeout—parse—no_credent"
+    }
+  ],
+  "beats": [
+    {
+      "t": 40,
+      "k": "round"
+    },
+    {
+      "t": 62,
+      "k": "bigcatch"
+    },
+    {
+      "t": 84,
+      "k": "smallcatch"
+    },
+    {
+      "t": 106,
+      "k": "tag"
+    },
+    {
+      "t": 128,
+      "k": "end"
+    },
+    {
+      "t": 150,
+      "k": "round"
+    },
+    {
+      "t": 172,
+      "k": "bigcatch"
+    },
+    {
+      "t": 194,
+      "k": "smallcatch"
+    },
+    {
+      "t": 216,
+      "k": "tag"
+    },
+    {
+      "t": 238,
+      "k": "end"
+    },
+    {
+      "t": 260,
+      "k": "round"
+    },
+    {
+      "t": 282,
+      "k": "bigcatch"
+    },
+    {
+      "t": 304,
+      "k": "smallcatch"
+    },
+    {
+      "t": 326,
+      "k": "tag"
+    },
+    {
+      "t": 348,
+      "k": "end"
+    },
+    {
+      "t": 370,
+      "k": "round"
+    },
+    {
+      "t": 392,
+      "k": "bigcatch"
+    },
+    {
+      "t": 414,
+      "k": "smallcatch"
+    },
+    {
+      "t": 436,
+      "k": "tag"
+    },
+    {
+      "t": 458,
+      "k": "end"
+    },
+    {
+      "t": 480,
+      "k": "round"
+    },
+    {
+      "t": 502,
+      "k": "bigcatch"
+    },
+    {
+      "t": 524,
+      "k": "smallcatch"
+    },
+    {
+      "t": 546,
+      "k": "tag"
+    },
+    {
+      "t": 568,
+      "k": "end"
+    },
+    {
+      "t": 590,
+      "k": "round"
+    },
+    {
+      "t": 612,
+      "k": "bigcatch"
+    },
+    {
+      "t": 634,
+      "k": "smallcatch"
+    },
+    {
+      "t": 656,
+      "k": "tag"
+    },
+    {
+      "t": 678,
+      "k": "end"
+    }
+  ],
+  "final": {
+    "reason": "complete",
+    "order": [
+      {
+        "alias": "Cog-A",
+        "name": "cooperative-hunting-pack-caller-champion-two-anthropic-claude-ha",
+        "score": 1888
+      },
+      {
+        "alias": "Cog-B",
+        "name": "cooperative-hunting-quartermaster-champion-two-anthropic-claude-",
+        "score": 1889
+      },
+      {
+        "alias": "Cog-C",
+        "name": "cooperative-hunting-biggame-scripted-baseline-big-game-hunter-fi",
+        "score": 1890
+      },
+      {
+        "alias": "Cog-D",
+        "name": "cooperative-hunting-sidekick-scripted-baseline-sidekick-seat-fil",
+        "score": 1891
+      },
+      {
+        "alias": "Cog-E",
+        "name": "cooperative-hunting-modeler-scripted-baseline-modeler-seat-fille",
+        "score": 1892
+      },
+      {
+        "alias": "Cog-F",
+        "name": "cooperative-hunting-rabbiteer-scripted-baseline-rabbiteer-seat-f",
+        "score": 1893
+      }
+    ]
+  }
+}

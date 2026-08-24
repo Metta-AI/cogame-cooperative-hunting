@@ -248,6 +248,127 @@ block pageIsSound:
   check("the page has no zoom or minimap wiring left",
     "attachMinimap" notin page)
 
+block worstCaseFixtureIsReachable:
+  ## tools/ci/fixtures/worst_case_chrome.json is the frame ci.yml's
+  ## worst-case renderer fixture hands the real page (acceptance checklist
+  ## item 15). It is only worth rendering if it is a label buildChromeLabel
+  ## could actually emit: the same keys, every string at the real cap, legal
+  ## beat kinds, inside the 4 KB label cap. A fixture whose strings quietly
+  ## drift short leaves the gate passing while testing nothing.
+  let path = getCurrentDir() / "tools" / "ci" / "fixtures" /
+    "worst_case_chrome.json"
+  check("the worst-case fixture frame is in the repo", fileExists(path))
+  if fileExists(path):
+    let fixture = parseJson(readFile(path))
+    let real = parseJson(buildChromeLabel(
+      2880, 960, 3, 3, 960, "play", "predator-prey", "", sampleSeats(),
+      @[ChromeFeedLine(tick: 2870, kind: "say",
+        text: "Cog-A: hold the north side until I say go")],
+      @[ChromeBeat(tick: 40, kind: "round")],
+      %*{"reason": "complete",
+         "order": [{"alias": "Cog-A", "name": "pack-caller", "score": 12}]}))
+    check("the fixture carries exactly the keys buildChromeLabel emits",
+      (block:
+        var good = true
+        for key, value in real.pairs:
+          if not fixture.hasKey(key):
+            echo "  the fixture is missing ", key, " (", value.kind, ")"
+            good = false
+        for key, value in fixture.pairs:
+          if not real.hasKey(key):
+            echo "  the fixture carries an extra key: ", key,
+              " (", value.kind, ")"
+            good = false
+        good))
+    check("every fixture seat carries what a real seat carries",
+      (block:
+        var good = true
+        for seat in fixture["seats"]:
+          for key, value in real["seats"][0].pairs:
+            if not seat.hasKey(key):
+              echo "  a fixture seat is missing ", key, " (", value.kind, ")"
+              good = false
+        good))
+    check("the fixture speaks on every seat at once",
+      fixture["seats"].len == 6 and fixture["feed"].len == 6)
+    check("every fixture remark is at the server's rune cap",
+      (block:
+        var good = true
+        for line in fixture["feed"]:
+          let runeCount = line["text"].getStr().runeLen
+          if runeCount != MaxSayRunes:
+            echo "  a fixture remark is ", runeCount, " runes, not ",
+              MaxSayRunes
+            good = false
+        good))
+    check("every fixture policy name is at the name cap",
+      (block:
+        var good = true
+        for seat in fixture["seats"]:
+          let runeCount = seat["name"].getStr().runeLen
+          if runeCount != MaxNameRunes:
+            echo "  a fixture name is ", runeCount, " runes, not ",
+              MaxNameRunes
+            good = false
+        good))
+    check("the fixture's feed kinds are the ones feedLineFor emits",
+      (block:
+        let kindsEmitted = [
+          feedLineFor("plan", %*{"alias": "Cog-A", "say": "go north"}).kind,
+          feedLineFor("fallback", %*{"alias": "Cog-F",
+            "baseline": "big_game_hunter", "cause": "no_credentials"}).kind]
+        var good = true
+        for line in fixture["feed"]:
+          if line["kind"].getStr() notin kindsEmitted:
+            echo "  the fixture carries a kind the game never emits: ",
+              line["kind"].getStr()
+            good = false
+        good))
+    check("every fixture beat kind is one the page has CSS for",
+      (block:
+        var good = true
+        for beat in fixture["beats"]:
+          if beat["k"].getStr() notin LegalBeatKinds:
+            echo "  illegal fixture beat kind: ", beat["k"].getStr()
+            good = false
+        good))
+    # The strongest anti-drift check available: feed the fixture's own
+    # contents back through buildChromeLabel. If the emitter trims a feed
+    # line, drops a beat for the 4 KB cap or rune-caps a string, the frame
+    # the fixture renders is not one this game can produce.
+    var seats: seq[ChromeSeat] = @[]
+    for seat in fixture["seats"]:
+      seats.add(ChromeSeat(
+        slot: seat["slot"].getInt(),
+        alias: seat["alias"].getStr(),
+        name: seat["name"].getStr(),
+        kind: seat["kind"].getStr(),
+        color: seat["color"].getInt(),
+        score: seat["score"].getInt(),
+        energy: seat["energy"].getInt(),
+        level: seat["level"].getInt(),
+        role: seat["role"].getStr(),
+        dc: seat["dc"].getBool()))
+    var feed: seq[ChromeFeedLine] = @[]
+    for line in fixture["feed"]:
+      feed.add(ChromeFeedLine(
+        tick: line["t"].getInt(),
+        kind: line["kind"].getStr(),
+        text: line["text"].getStr()))
+    var beats: seq[ChromeBeat] = @[]
+    for beat in fixture["beats"]:
+      beats.add(ChromeBeat(
+        tick: beat["t"].getInt(), kind: beat["k"].getStr()))
+    let emitted = buildChromeLabel(
+      fixture["tick"].getInt(), fixture["rtick"].getInt(),
+      fixture["round"].getInt(), fixture["rounds"].getInt(),
+      fixture["ticksPerRound"].getInt(), fixture["phase"].getStr(),
+      fixture["variant"].getStr(), "", seats, feed, beats, fixture["final"])
+    check("the fixture fits the 4 KB label cap, so it is reachable",
+      emitted.len <= MaxChromeLabelBytes)
+    check("the real emitter reproduces the fixture frame exactly",
+      parseJson(emitted) == fixture)
+
 if failures > 0:
   quit("test_chrome: " & $failures & " failures", 1)
 echo "test_chrome: all checks passed"

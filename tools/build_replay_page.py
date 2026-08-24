@@ -104,7 +104,22 @@ GAME_CSS = """
   pointer-events: none;
   max-width: min(64%, calc(320 * var(--u)));
 }
-#feed .feed-row { pointer-events: none; }
+/* A `say` line is a MODEL sentence at the server's 120-rune cap
+   (MaxSayRunes), not the starter's ten-character kill-feed line, and 120
+   runes of CJK are three times the width of 120 runes of latin. The
+   starter's `white-space: nowrap; max-width: none` sends such a row off the
+   LEFT edge of the frame (the rows are right-anchored), which is
+   cogchemists' negative-coordinate bubble in DOM form: drawn, unclipped by
+   any box, and invisible. Wrap inside the feed's reserved width instead --
+   the band is sized from the cap the server enforces, not by eye. Gated by
+   tools/ci/fixtures/worst_case_harness.html in ci.yml. */
+#feed .feed-row {
+  pointer-events: none;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  max-width: 100%;
+  text-align: right;
+}
 #feed .feed-row.say { color: var(--paper); font-style: italic; }
 #feed .feed-row.hurt { color: var(--red); }
 #feed .feed-row.tag { color: var(--amber); }
