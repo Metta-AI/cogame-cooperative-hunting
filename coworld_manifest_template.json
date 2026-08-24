@@ -557,6 +557,14 @@
   ],
   "certification": {
     "game_config": {
+      "tokens": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
       "players": [
         {
           "name": "Cog-A"

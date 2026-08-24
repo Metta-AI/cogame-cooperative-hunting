@@ -684,6 +684,12 @@ manifest = {
     ],
     "certification": {
         "game_config": {
+            # `tokens` is a required property of config_schema, so the fixture
+            # must carry it or a validator reading the fixture against the
+            # schema rejects it. Empty strings are what the runner replaces:
+            # they are schema-valid (minLength 0) and tokenValid() treats an
+            # empty configured token as "no token for this slot".
+            "tokens": ["" for _ in range(SEATS)],
             "players": players(),
             "num_agents": SEATS,
             "variant": "staghunt",
