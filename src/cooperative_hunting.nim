@@ -207,6 +207,7 @@ type
     finished: bool
     roundEndTick: int
     batchInFlight: bool
+    turnsSkipped: int
     llmRequests: int
     llmEnabled: bool
     ingested: int
@@ -349,6 +350,10 @@ proc resultsJson(ep: Episode): JsonNode =
     "catches": catchesArr,
     "co_captures": coCapturesArr,
     "llm_requests": ep.llmRequests,
+    # Planning turns whose boundary arrived while the previous batch was
+    # still in flight: the seats kept their previous plan and no fallback was
+    # recorded, so without this the skip left no trace at all.
+    "plan_turns_skipped": ep.turnsSkipped,
     "variant": ep.config.variant,
     "seed": ep.config.seed,
     "final_tick": ep.sim.globalTick,
@@ -417,7 +422,15 @@ proc promptSeats(ep: Episode): seq[int] =
 proc dispatchPlanBatch(ep: var Episode) =
   ## ONE parallel batch per planning turn: decisions in this game are
   ## simultaneous, so they must be. The sim does not wait for it.
-  if not ep.llmEnabled or ep.batchInFlight:
+  if not ep.llmEnabled:
+    return
+  if ep.batchInFlight:
+    # The previous batch has not come back by this 120-tick boundary, so the
+    # seats keep the plan they have and this turn is skipped -- the sim never
+    # waits. It is not a fallback (no seat lost a plan and no cause applies),
+    # but it IS a turn the model did not get, so it is counted and reported
+    # in results rather than vanishing.
+    inc ep.turnsSkipped
     return
   let seats = ep.promptSeats()
   for i, seat in ep.seats:

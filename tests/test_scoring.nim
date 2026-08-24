@@ -198,6 +198,13 @@ block resultsShape:
       results[key].len == config.numAgents)
   check("results.reason is one of the three legal values",
     results["reason"].getStr() in LegalReasons)
+  # Phase 60 counts what the model did and did not get to do: a planning
+  # turn skipped because the previous batch was still in flight is neither a
+  # request nor a fallback, so it needs its own counter or it leaves no
+  # trace.
+  check("results counts the planning turns that were skipped",
+    results.hasKey("plan_turns_skipped") and
+    results["plan_turns_skipped"].getInt() >= 0)
   check("results.rounds has one array per round",
     results["rounds"].len == config.rounds)
   check("every round array has one entry per seat",
