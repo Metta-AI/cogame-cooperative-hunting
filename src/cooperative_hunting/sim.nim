@@ -398,6 +398,11 @@ proc applyRoles(sim: var SimServer) =
 # Construction
 # ---------------------------------------------------------------------------
 
+proc applyRolesPublic*(sim: var SimServer) =
+  ## Assign this round's predator-prey roles. Called once by the server after
+  ## the roster closes, and again by `resetRound` on every later round.
+  sim.applyRoles()
+
 proc applyVariant*(sim: var SimServer) =
   sim.captureRule = captureRuleFor(sim.config.variant)
   sim.windowTicks = windowTicksFor(sim.config.variant)
@@ -1188,8 +1193,10 @@ proc step*(sim: var SimServer, inputs: openArray[InputState]) =
   ## One simulation tick, in the exact resolution order the design note
   ## specifies. Nothing in that list is order-independent, so the list IS the
   ## specification. Ties resolve by ascending slot, then ascending index.
+  ## `pendingCaptures` is per-tick and cleared here; `pendingEvents` is NOT,
+  ## because events logged between ticks (a plan handed out, a round card
+  ## starting) belong to the next recorded tick. The caller drains it.
   sim.pendingCaptures.setLen(0)
-  sim.pendingEvents.setLen(0)
   inc sim.tickCount
   inc sim.globalTick
 

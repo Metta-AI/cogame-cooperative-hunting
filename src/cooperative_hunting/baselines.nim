@@ -351,7 +351,7 @@ proc spriteInfo(bot: Bot, spriteId: int): SpriteInfo =
 proc objectPresent(bot: Bot, objectId: int): bool =
   objectId >= 0 and objectId < bot.objects.len and bot.objects[objectId].present
 
-proc deriveCamera(bot: var Bot) =
+proc deriveCamera*(bot: var Bot) =
   ## Derives the world camera offset from any visible background tile: each
   ## grass tile has `objectId = BackgroundObjectBase + ty*32 + tx` and was
   ## drawn at `x = tx*StagTileSize - cameraX`.
@@ -452,7 +452,7 @@ proc visiblePrey*(bot: Bot): seq[PreySight] =
       tileX: worldX div StagTileSize, tileY: worldY div StagTileSize
     )
 
-proc findSelf(bot: var Bot, players: openArray[PlayerSight]) =
+proc findSelf*(bot: var Bot, players: openArray[PlayerSight]) =
   bot.selfFound = false
   if bot.selfObjectId < 0:
     return
@@ -463,7 +463,7 @@ proc findSelf(bot: var Bot, players: openArray[PlayerSight]) =
       bot.selfFound = true
       return
 
-proc updateObstacleMap(bot: var Bot) =
+proc updateObstacleMap*(bot: var Bot) =
   if not bot.cameraKnown: return
   let scanEnd = min(bot.objects.len, BackgroundObjectBase + MaxBackgroundIndex)
   for objectId in BackgroundObjectBase ..< scanEnd:
@@ -481,7 +481,7 @@ proc updateObstacleMap(bot: var Bot) =
         continue
     bot.obstacleMap.markTile(tx, ty, TileClear)
 
-proc updateStuckState(bot: var Bot, mask: uint8) =
+proc updateStuckState*(bot: var Bot, mask: uint8) =
   if not bot.selfFound:
     return
   let lastIdx = (bot.posHistoryIdx + bot.posHistoryCount - 1 + 4) mod 4
@@ -509,7 +509,7 @@ proc navigate*(bot: var Bot, targetX, targetY: int): uint8 =
   bot.updateStuckState(mask)
   mask
 
-proc navigateAvoiding(
+proc navigateAvoiding*(
   bot: var Bot, targetX, targetY: int, blocked: seq[tuple[x, y: int]]
 ): uint8 =
   var saved: seq[tuple[x, y: int, status: TileStatus]] = @[]
@@ -674,14 +674,14 @@ proc catchableKinds(nearbyCount: int): set[PreyKind] =
 proc preyReward(kind: PreyKind): int =
   rewardsFor(kind).score
 
-proc allyBlockers(
+proc allyBlockers*(
   bot: Bot, players: openArray[PlayerSight]
 ): seq[tuple[x, y: int]] =
   for pl in players:
     if pl.objectId != bot.selfObjectId:
       result.add((pl.tileX, pl.tileY))
 
-proc closeOnAllyOrExplore(
+proc closeOnAllyOrExplore*(
   bot: var Bot, players: openArray[PlayerSight]
 ): uint8 =
   ## The shared "no target in sight" behaviour: close on the nearest ally
@@ -705,7 +705,7 @@ proc closeOnAllyOrExplore(
     bot.pickExploreTarget()
   bot.navigateAvoiding(bot.exploreTargetX, bot.exploreTargetY, blocked)
 
-proc restGate(bot: var Bot): bool =
+proc restGate*(bot: var Bot): bool =
   ## Energy rest with hysteresis: in long games movement (2/step) outpaces
   ## passive recharge (+1/18 ticks), so below 30 the bot sits still until it
   ## is back to 60. Without this, long episodes end frozen at 0.
