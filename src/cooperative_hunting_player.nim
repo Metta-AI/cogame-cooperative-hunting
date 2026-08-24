@@ -58,8 +58,14 @@ proc resolvePolicy(): Policy =
   let prompt = getEnv("PLAYER_PROMPT").strip()
   let scripted = getEnv("PLAYER_SCRIPTED").strip()
   let fallback = getEnv("PLAYER_FALLBACK_SCRIPTED").strip()
+  # PLAYER_FALLBACK_SCRIPTED is what a PROMPT seat plays between plans and
+  # when a plan falls back; PLAYER_SCRIPTED is what a scripted seat plays,
+  # full stop. Reading the fallback first made it override PLAYER_SCRIPTED on
+  # a seat that carries both, so a scripted seat would have played a bot
+  # nobody asked it to play.
   result.baseline =
-    if fallback.len > 0: parseBaselineKind(fallback)
+    if scripted.len > 0 and prompt.len == 0: parseBaselineKind(scripted)
+    elif fallback.len > 0: parseBaselineKind(fallback)
     elif scripted.len > 0: parseBaselineKind(scripted)
     else: bkBigGameHunter
   if prompt.len > 0:
