@@ -195,12 +195,12 @@ Exactly three values are legal, and the game emits nothing else:
 
 - **`complete`** — all `rounds` rounds ran to `ticksPerRound` and their round cards finished. The
   normal path.
-- **`deadline`** — the wall-clock guard in step 11 fired (`playBudgetSeconds`, default 660 s).
+- **`deadline`** — the wall-clock guard in step 11 fired (`playBudgetSeconds`, default 600 s).
   The current round is scored as it stands at that tick, the remaining rounds are not played, a
   `deadline` event is written, and the episode settles and exits **0**. Scores are real, not
   zeroed, so a deadline episode is still rankable. This is the degrade-never-hang backstop; with
   the numbers in `## Packaging` it should never fire.
-- **`no_players`** — zero seats connected within `player_connect_timeout_seconds` (default 120 s).
+- **`no_players`** — zero seats connected within `player_connect_timeout_seconds` (default 45 s).
   `results.json` is written with all-zero scores and the process exits **0** (never hangs, never
   non-zero). If ≥ 1 seat connects the episode runs with the seats it has; absent seats score 0 and
   are flagged `disconnected: true` in the replay and results.
@@ -459,8 +459,8 @@ ticksPerRound: int = 960
 tickHz: int = 8
 planIntervalTicks: int = 120
 planTimeoutSeconds: int = 12
-playBudgetSeconds: int = 660
-player_connect_timeout_seconds: int = 120
+playBudgetSeconds: int = 600
+player_connect_timeout_seconds: int = 45
 maxOutputTokens: int = 900
 model: string = "claude-haiku-4-5"        # direct-Anthropic transport only
 ```

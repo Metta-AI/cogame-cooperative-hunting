@@ -130,18 +130,18 @@
           "default": 12
         },
         "playBudgetSeconds": {
-          "description": "Wall-clock guard. Past it the episode settles immediately with reason 'deadline' and the scores as they stand.",
+          "description": "Wall-clock guard. Past it the episode settles immediately with reason 'deadline' and the scores as they stand. The default leaves the worst-case episode inside 60% of episode_timeout_minutes.",
           "type": "integer",
           "minimum": 30,
           "maximum": 1200,
-          "default": 660
+          "default": 600
         },
         "player_connect_timeout_seconds": {
           "description": "Bounded wait for seats to connect before the episode starts anyway.",
           "type": "integer",
           "minimum": 1,
           "maximum": 600,
-          "default": 120
+          "default": 45
         },
         "maxOutputTokens": {
           "description": "Output token cap for one plan request. 400 truncates the reply before the JSON closes.",

@@ -518,8 +518,14 @@ proc defaultGameConfig*(): GameConfig =
     tickHz: 8,
     planIntervalTicks: 120,
     planTimeoutSeconds: 12,
-    playBudgetSeconds: 660,
-    playerConnectTimeoutSeconds: 120,
+    # The two waits that set the episode's worst case. Their sum with every
+    # other bound in the process -- 45 roster + 0.5 registration grace + 600
+    # deadline guard + 24 LLM-thread join (2 attempts x planTimeoutSeconds) +
+    # 20 shutdown grace = 689.5 s -- is 57 % of the 1200 s
+    # episode_timeout_minutes, inside the 60 % (720 s) rule. Raising either
+    # one breaks that sum: check it before you do.
+    playBudgetSeconds: 600,
+    playerConnectTimeoutSeconds: 45,
     maxOutputTokens: 900,
     model: "claude-haiku-4-5",
     closedRoster: false,
