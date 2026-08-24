@@ -114,6 +114,35 @@ block runeTruncation:
     validateUtf8(plan.note) == -1)
   check("the truncation is marked", plan.say.endsWith("\u2026"))
 
+block everyCapIsARuneCap:
+  ## Not just `say` and `note`: `intent`, `side`, `with` and `target` are cut
+  ## on rune boundaries too. Each of those four is coerced to a legal value
+  ## (or raises) before it could reach the replay, so a byte cut would not
+  ## be visible downstream today -- which is exactly why it has to be
+  ## asserted here rather than inferred from what survives.
+  let plan = parseText($(%*{
+    "intent": repeat("\u{1F98C}", 40),
+    "side": repeat("\u{1F98C}", 8),
+    "with": [repeat("\u00e9", 60), "Cog-A"],
+    "target": "none"
+  }))
+  check("an over-long intent coerces to the default", plan.intent == "hunt")
+  check("an over-long side coerces to any", plan.side == "any")
+  check("an over-long ally name is dropped, and a real one kept",
+    plan.partners == @["Cog-A"])
+  var raised = false
+  var message = ""
+  try:
+    discard parseText($(%*{
+      "target": repeat("\u{1F98C}", 200), "intent": "hunt"
+    }))
+  except CatchableError as error:
+    raised = true
+    message = error.msg
+  check("an over-long target is still an illegal target", raised)
+  check("the rejection message is valid UTF-8, so it is safe to record",
+    validateUtf8(message) == -1)
+
 block controlCharacters:
   let plan = parseText($(%*{
     "target": "none", "say": "line one\nline two\ttabbed"

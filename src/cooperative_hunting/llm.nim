@@ -471,14 +471,15 @@ proc parsePlan*(
   result.turn = turn
   result.src = "llm"
 
-  var intent = payload{"intent"}.getStr().strip().toLowerAscii()
-  if intent.len > MaxIntentChars:
-    intent = intent[0 ..< MaxIntentChars]
+  # Every cap in this proc is a RUNE cap. None of these four values can
+  # reach the replay byte-cut (each is coerced to a legal value or raises
+  # below), but "every string is cut on a rune boundary" is a property of
+  # the parser, not of what happens to survive it today.
+  let intent = runeCap(payload{"intent"}.getStr().strip().toLowerAscii(),
+    MaxIntentChars)
   result.intent = if intent in LegalIntents: intent else: "hunt"
 
-  var side = payload{"side"}.getStr().strip()
-  if side.len > MaxSideChars:
-    side = side[0 ..< MaxSideChars]
+  let side = runeCap(payload{"side"}.getStr().strip(), MaxSideChars)
   let sideUpper = side.toUpperAscii()
   result.side =
     if sideUpper in ["N", "S", "E", "W"]: sideUpper
@@ -489,18 +490,14 @@ proc parsePlan*(
     for entry in withNode:
       if result.partners.len >= MaxWithItems:
         break
-      var name = entry.getStr().strip()
-      if name.len > MaxWithChars:
-        name = name[0 ..< MaxWithChars]
+      let name = runeCap(entry.getStr().strip(), MaxWithChars)
       if name in aliases and name notin result.partners:
         result.partners.add(name)
 
   result.say = cleanText(payload{"say"}.getStr(), MaxSayRunes)
   result.note = cleanText(payload{"note"}.getStr(), MaxNoteRunes)
 
-  var target = payload{"target"}.getStr().strip()
-  if target.len > MaxTargetChars:
-    target = target[0 ..< MaxTargetChars]
+  var target = runeCap(payload{"target"}.getStr().strip(), MaxTargetChars)
   if target.len == 0:
     target = "none"
   if target notin legal:
