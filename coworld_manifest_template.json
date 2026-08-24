@@ -52,7 +52,7 @@
           }
         },
         "players": {
-          "description": "One display-name object per seat, indexed by slot. Display names are spectator-side only; hunters see Cog-A..Cog-F.",
+          "description": "One display-name object per seat, indexed by slot. Display names are spectator-side only and are NOT the in-game aliases: hunters see Cog-A..Cog-F, drawn by a seeded permutation that is independent of this list.",
           "type": "array",
           "minItems": 6,
           "maxItems": 6,
@@ -429,22 +429,22 @@
       "game_config": {
         "players": [
           {
-            "name": "Cog-A"
+            "name": "Hunter 1"
           },
           {
-            "name": "Cog-B"
+            "name": "Hunter 2"
           },
           {
-            "name": "Cog-C"
+            "name": "Hunter 3"
           },
           {
-            "name": "Cog-D"
+            "name": "Hunter 4"
           },
           {
-            "name": "Cog-E"
+            "name": "Hunter 5"
           },
           {
-            "name": "Cog-F"
+            "name": "Hunter 6"
           }
         ],
         "num_agents": 6,
@@ -462,22 +462,22 @@
       "game_config": {
         "players": [
           {
-            "name": "Cog-A"
+            "name": "Hunter 1"
           },
           {
-            "name": "Cog-B"
+            "name": "Hunter 2"
           },
           {
-            "name": "Cog-C"
+            "name": "Hunter 3"
           },
           {
-            "name": "Cog-D"
+            "name": "Hunter 4"
           },
           {
-            "name": "Cog-E"
+            "name": "Hunter 5"
           },
           {
-            "name": "Cog-F"
+            "name": "Hunter 6"
           }
         ],
         "num_agents": 6,
@@ -495,22 +495,22 @@
       "game_config": {
         "players": [
           {
-            "name": "Cog-A"
+            "name": "Hunter 1"
           },
           {
-            "name": "Cog-B"
+            "name": "Hunter 2"
           },
           {
-            "name": "Cog-C"
+            "name": "Hunter 3"
           },
           {
-            "name": "Cog-D"
+            "name": "Hunter 4"
           },
           {
-            "name": "Cog-E"
+            "name": "Hunter 5"
           },
           {
-            "name": "Cog-F"
+            "name": "Hunter 6"
           }
         ],
         "num_agents": 6,
@@ -528,22 +528,22 @@
       "game_config": {
         "players": [
           {
-            "name": "Cog-A"
+            "name": "Hunter 1"
           },
           {
-            "name": "Cog-B"
+            "name": "Hunter 2"
           },
           {
-            "name": "Cog-C"
+            "name": "Hunter 3"
           },
           {
-            "name": "Cog-D"
+            "name": "Hunter 4"
           },
           {
-            "name": "Cog-E"
+            "name": "Hunter 5"
           },
           {
-            "name": "Cog-F"
+            "name": "Hunter 6"
           }
         ],
         "num_agents": 6,
@@ -567,22 +567,22 @@
       ],
       "players": [
         {
-          "name": "Cog-A"
+          "name": "Hunter 1"
         },
         {
-          "name": "Cog-B"
+          "name": "Hunter 2"
         },
         {
-          "name": "Cog-C"
+          "name": "Hunter 3"
         },
         {
-          "name": "Cog-D"
+          "name": "Hunter 4"
         },
         {
-          "name": "Cog-E"
+          "name": "Hunter 5"
         },
         {
-          "name": "Cog-F"
+          "name": "Hunter 6"
         }
       ],
       "num_agents": 6,

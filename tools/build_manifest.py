@@ -12,7 +12,14 @@ SEATS = 6
 IMAGE = "{{COOPERATIVE_HUNTING_IMAGE}}"
 REPO = "https://github.com/Metta-AI/cogame-cooperative-hunting/tree/main"
 
-PLAYER_NAMES = ["Cog-A", "Cog-B", "Cog-C", "Cog-D", "Cog-E", "Cog-F"]
+# Spectator-side display names, and deliberately NOT the in-game aliases.
+# A seat's alias (Cog-A .. Cog-F) is an independent seeded permutation drawn
+# per episode, so the seat listed here as "Cog-A" is usually some OTHER seat's
+# alias in play -- two name spaces conflated in the one place a reader compares
+# them. The real name normally arrives on the player socket as `?name=<policy>`
+# and overrides these; they are the fallback a spectator sees when it does not.
+PLAYER_NAMES = ["Hunter 1", "Hunter 2", "Hunter 3",
+                "Hunter 4", "Hunter 5", "Hunter 6"]
 
 
 def players(names=None):
@@ -414,7 +421,7 @@ CONFIG_SCHEMA = {
             "items": {"type": "string", "minLength": 0},
         },
         "players": {
-            "description": "One display-name object per seat, indexed by slot. Display names are spectator-side only; hunters see Cog-A..Cog-F.",
+            "description": "One display-name object per seat, indexed by slot. Display names are spectator-side only and are NOT the in-game aliases: hunters see Cog-A..Cog-F, drawn by a seeded permutation that is independent of this list.",
             "type": "array",
             "minItems": SEATS,
             "maxItems": SEATS,
