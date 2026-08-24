@@ -10,9 +10,7 @@
 ## live-server path are DELETED, not adapted: replays here are a static wasm
 ## bundle and are never served by a pod.
 
-import std/[json, locks, monotimes, os, parseopt, sets, strutils, tables,
-  unicode,
-  times]
+import std/[json, locks, monotimes, os, sets, strutils, tables, times, unicode]
 import mummy
 import bitworld/client
 import bitworld/cogame_runtime
@@ -1116,6 +1114,8 @@ proc runServerLoop(host: string, port: int, config: GameConfig) =
   quit(0)
 
 when isMainModule:
+  import std/parseopt
+
   var
     address = cogameHost("0.0.0.0")
     port = cogamePort(8080)
