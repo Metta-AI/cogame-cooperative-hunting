@@ -664,6 +664,13 @@ def main():
     head = head.replace("<title>Ctf — Broadcast Replay</title>",
                         "<title>Cooperative Hunting — Broadcast Replay</title>")
     css = filter_css("\n".join(src[7:1459]))
+    # The starter ships a `rajdhani` webfont next to its bundle; this game's
+    # bundle carries no font file, so the @font-face would 404 on every load.
+    # Drop the rule and let --pixfont fall through to the embedded pixel face
+    # and the system stack, which is what it already lists as its fallbacks.
+    css = re.sub(
+        r"@font-face \{\s*font-family: 'rajdhani';.*?\}\s*", "", css,
+        flags=re.S)
     css = css.replace("(align-items:flex-end on #killfeed)",
                       "(align-items:flex-end on #feed)")
     body = "\n".join(src[1462:1600])
