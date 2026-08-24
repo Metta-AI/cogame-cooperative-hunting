@@ -145,8 +145,20 @@
   }
 
   function settle() {
+    // "An entrance animation played through to settle" -- deterministically.
+    // The three fixture frames are stacked in one harness page, so two of
+    // them are below the fold, where chromium throttles rendering: waiting a
+    // fixed SETTLE_MS measured a row mid-`feedin` (translated right, 60 %
+    // opaque) on a loaded machine and passed on an idle one. Finishing the
+    // animations IS playing them through, and it does not depend on the
+    // machine.
     return new Promise(function (resolve) {
       setTimeout(function () {
+        if (typeof document.getAnimations === 'function') {
+          document.getAnimations().forEach(function (animation) {
+            try { animation.finish(); } catch (error) { /* infinite: leave */ }
+          });
+        }
         requestAnimationFrame(function () {
           requestAnimationFrame(resolve);
         });
