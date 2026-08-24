@@ -76,7 +76,8 @@ proc addTerrainObjects(
         packet.addObject(
           GrassObjectBase + index,
           screenX, screenY, screenY + 1,
-          MapLayerId, TallGrassSpriteId
+          MapLayerId,
+          (if sim.grassDim: TallGrassDimSpriteId else: TallGrassSpriteId)
         )
       let spriteId =
         case kind
@@ -540,7 +541,7 @@ proc chromeSeatNode(seat: ChromeSeat): JsonNode =
   }
 
 proc buildChromeLabel*(
-  tick, roundNo, rounds, ticksPerRound: int,
+  tick, roundTick, roundNo, rounds, ticksPerRound: int,
   phase, variant, reason: string,
   seats: seq[ChromeSeat],
   feed: seq[ChromeFeedLine],
@@ -568,6 +569,7 @@ proc buildChromeLabel*(
     })
   var doc = %*{
     "tick": tick,
+    "rtick": roundTick,
     "round": roundNo,
     "rounds": rounds,
     "ticksPerRound": ticksPerRound,

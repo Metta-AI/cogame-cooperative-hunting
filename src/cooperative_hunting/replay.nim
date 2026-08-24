@@ -492,6 +492,14 @@ proc applyTick*(sim: var SimServer, doc: ReplayDoc, index: int) =
   let frame = doc.ticks[index]
   sim.globalTick = frame.tick
   sim.roundIndex = max(0, frame.roundNo - 1)
+  # The tick WITHIN the round, so the viewer's clock can print real play
+  # numbers ("1080 / 2880") rather than a global frame index.
+  var roundStart = 1
+  for entry in doc.raw{"rounds"}:
+    if entry{"n"}.getInt() == frame.roundNo:
+      roundStart = entry{"startTick"}.getInt(1)
+  sim.tickCount = max(1, min(frame.tick - roundStart + 1,
+    sim.config.ticksPerRound))
   sim.phase = (if frame.phase == "card": RoundEnding else: RoundPlaying)
 
   if not frame.p.isNil and frame.p.kind == JArray:

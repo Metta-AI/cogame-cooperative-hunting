@@ -282,6 +282,7 @@ proc ingestEvents(ep: var Episode) =
 proc currentChromeLabel(ep: var Episode, final: JsonNode): string =
   result = buildChromeLabel(
     ep.sim.globalTick,
+    min(ep.sim.tickCount, ep.config.ticksPerRound),
     ep.sim.roundIndex + 1,
     ep.config.rounds,
     ep.config.ticksPerRound,

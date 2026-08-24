@@ -177,6 +177,7 @@ const
   BerryPickedSpriteId* = 54
   TallGrassSpriteId* = 55
   FoodSpriteId* = 56
+  TallGrassDimSpriteId* = 57
   LevelBadgeBase* = 60        # + digit 0..9, a 5x7 badge with a dark plate
 
   ItemObjectBase* = 13000     # + item index
@@ -374,6 +375,7 @@ type
     foodSprite*: RgbaSprite
     berryPickedSprite*: RgbaSprite
     tallGrassSprite*: RgbaSprite
+    tallGrassDimSprite*: RgbaSprite
     chromeSprite*: RgbaSprite
 
   ViewerState* = object
@@ -420,6 +422,9 @@ type
     respawnCooldown*: int
     stats*: seq[PlayerStats]
     focusElephant*: bool
+    ## Spectator-side only: the viewer's grass-opacity toggle. Never set by
+    ## the live server, so it can never change what a hunter sees.
+    grassDim*: bool
     art*: SpriteCache
     ## Captures resolved on the current tick, drained by the caller.
     pendingCaptures*: seq[Capture]

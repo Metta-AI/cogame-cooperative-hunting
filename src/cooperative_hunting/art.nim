@@ -471,6 +471,11 @@ proc buildSpriteCache*(cache: var SpriteCache) =
   cache.foodSprite = patternToRgbaSprite(FoodPilePattern)
   cache.berryPickedSprite = patternToRgbaSprite(BerryPickedPattern)
   cache.tallGrassSprite = patternToRgbaSprite(TallGrassPattern)
+  # The spectator's grass-opacity toggle: the same blades at 40 % alpha.
+  cache.tallGrassDimSprite = cache.tallGrassSprite
+  for i in countup(3, cache.tallGrassDimSprite.pixels.len - 1, 4):
+    cache.tallGrassDimSprite.pixels[i] =
+      uint8((int(cache.tallGrassDimSprite.pixels[i]) * 2) div 5)
   cache.chromeSprite = patternToRgbaSprite(ChromePattern)
 
   cache.overlayBgSprite =
@@ -609,3 +614,5 @@ proc addSpriteProtocolInit*(
     "picked berry bush")
   packet.addSprite(TallGrassSpriteId, cache.tallGrassSprite, "tall grass")
   packet.addSprite(FoodSpriteId, cache.foodSprite, "food")
+  packet.addSprite(TallGrassDimSpriteId, cache.tallGrassDimSprite,
+    "tall grass (see-through)")
