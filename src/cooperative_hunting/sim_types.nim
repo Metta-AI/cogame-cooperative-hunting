@@ -176,6 +176,7 @@ const
   BerryRipeSpriteId* = 53
   BerryPickedSpriteId* = 54
   TallGrassSpriteId* = 55
+  FoodSpriteId* = 56
   LevelBadgeBase* = 60        # + digit 0..9, a 5x7 badge with a dark plate
 
   ItemObjectBase* = 13000     # + item index
@@ -370,6 +371,7 @@ type
     goldSprite*: RgbaSprite
     countdownRingSprite*: RgbaSprite
     berryRipeSprite*: RgbaSprite
+    foodSprite*: RgbaSprite
     berryPickedSprite*: RgbaSprite
     tallGrassSprite*: RgbaSprite
     chromeSprite*: RgbaSprite

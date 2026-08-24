@@ -165,7 +165,7 @@ proc addItemObjects(
       case item.kind
       of itIron: IronSpriteId
       of itGold: GoldSpriteId
-      of itFood: BerryRipeSpriteId
+      of itFood: FoodSpriteId
     packet.addObject(
       ItemObjectBase + i,
       screenX, screenY, screenY + 2,

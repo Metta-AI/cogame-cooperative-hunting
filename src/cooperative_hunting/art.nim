@@ -294,6 +294,23 @@ const
     "............",
   ]
 
+  ## lbf food: a pile of fruit, distinct from the predator-prey berry bush
+  ## so a bot can tell "a thing with a level" from "a thing to stand on".
+  FoodPilePattern = [
+    "............",
+    "............",
+    ".....b......",
+    "....3b3.....",
+    "...33333....",
+    "..3733373...",
+    "..3333333...",
+    "...37333....",
+    "....333.....",
+    ".....5......",
+    "............",
+    "............",
+  ]
+
   ## The chrome carrier: a single transparent pixel. broadcast_core.js reads
   ## sprite 4090's LABEL and never registers it as drawable.
   ChromePattern = [
@@ -451,6 +468,7 @@ proc buildSpriteCache*(cache: var SpriteCache) =
   cache.goldSprite = patternToRgbaSprite(GoldNodePattern)
   cache.countdownRingSprite = patternToRgbaSprite(CountdownRingPattern)
   cache.berryRipeSprite = patternToRgbaSprite(BerryRipePattern)
+  cache.foodSprite = patternToRgbaSprite(FoodPilePattern)
   cache.berryPickedSprite = patternToRgbaSprite(BerryPickedPattern)
   cache.tallGrassSprite = patternToRgbaSprite(TallGrassPattern)
   cache.chromeSprite = patternToRgbaSprite(ChromePattern)
@@ -590,3 +608,4 @@ proc addSpriteProtocolInit*(
   packet.addSprite(BerryPickedSpriteId, cache.berryPickedSprite,
     "picked berry bush")
   packet.addSprite(TallGrassSpriteId, cache.tallGrassSprite, "tall grass")
+  packet.addSprite(FoodSpriteId, cache.foodSprite, "food")
