@@ -580,10 +580,20 @@ GAME_SCRIPT = r"""
       });
     }
 
+    // A transport button shows the ACTION it performs, which is the
+    // starter's rule too (chrome_common: `s.pl ? pause : play`). This was
+    // inverted -- it drew the play glyph after starting playback -- and the
+    // markup ships the play glyph while static_replay.js starts PLAYING, so
+    // the button lied before it was ever pressed.
+    function renderPlayButton() {
+      byId('btn-play').textContent =
+        core.isPlaying() ? '\u275a\u275a' : '\u25b6';
+    }
+
     function wireTransport() {
       byId('btn-play').onclick = function () {
         core.setPlaying(!core.isPlaying());
-        byId('btn-play').textContent = core.isPlaying() ? '\u25b6' : '\u275a\u275a';
+        renderPlayButton();
       };
       byId('btn-restart').onclick = function () { seekTo(0); };
       byId('btn-back').onclick = function () { seekTo(currentIndex - 1); };
@@ -647,6 +657,7 @@ GAME_SCRIPT = r"""
       byId('scrub-fill').style.width = (progress * 100) + '%';
       byId('scrub-head').style.left = (progress * 100) + '%';
       byId('status').textContent = '';
+      renderPlayButton();
       if (state.final) showEndcard(state.final);
     }
 
@@ -671,6 +682,7 @@ GAME_SCRIPT = r"""
     });
     buildSpeedChips();
     wireTransport();
+    renderPlayButton();
     window.addEventListener('resize', function () { core.setViewportFit(); });
     core.start();
 
