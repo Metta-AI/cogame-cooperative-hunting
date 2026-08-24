@@ -190,6 +190,11 @@ proc configNode*(config: GameConfig): JsonNode =
     "player_connect_timeout_seconds": config.playerConnectTimeoutSeconds,
     "maxOutputTokens": config.maxOutputTokens,
     "model": config.model,
+    # Every resolved field means every field: these two are set from the
+    # variant node and from `focus`, and a replay that omits them cannot say
+    # which world it recorded.
+    "closedRoster": config.closedRoster,
+    "focusElephant": config.focusElephant,
     "players": playerNames
   }
 

@@ -54,6 +54,14 @@ block requiredKeys:
   check("the config is expanded, not a delta",
     doc["config"].hasKey("planIntervalTicks") and
     doc["config"].hasKey("playBudgetSeconds"))
+  # Every resolved GameConfig field, so the replay stands alone: a field
+  # added to GameConfig and not to configNode leaves the document unable to
+  # say which world it recorded.
+  for key in ["num_agents", "seed", "variant", "rounds", "ticksPerRound",
+      "tickHz", "planIntervalTicks", "planTimeoutSeconds", "playBudgetSeconds",
+      "player_connect_timeout_seconds", "maxOutputTokens", "model",
+      "closedRoster", "focusElephant", "players"]:
+    check("the replay config carries " & key, doc["config"].hasKey(key))
 
 block seatsPopulated:
   for seat in doc["seats"]:
