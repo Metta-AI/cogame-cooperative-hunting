@@ -548,7 +548,8 @@ proc buildChromeLabel*(
   beats: seq[ChromeBeat],
   final: JsonNode
 ): string =
-  ## <= 4 KB of strict UTF-8 JSON, every free-text field rune-truncated.
+  ## <= MaxChromeLabelBytes of strict UTF-8 JSON, every free-text field
+  ## rune-truncated.
   ## `beats` ships COMPLETE on the first frame (paintbot's ingestBeats
   ## pattern) so the scrubber tells the story before playback reaches it;
   ## `feed` carries only lines new since the previous frame.
@@ -582,7 +583,7 @@ proc buildChromeLabel*(
     "final": (if final.isNil: newJNull() else: final)
   }
   result = $doc
-  # Cap at 4 KB by dropping feed lines first, then beats: the seats block and
+  # Cap by dropping feed lines first, then beats: the seats block and
   # the clock are what the page cannot render without.
   while result.len > MaxChromeLabelBytes and feedArr.len > 0:
     var trimmed = newJArray()

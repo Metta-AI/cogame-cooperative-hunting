@@ -334,7 +334,7 @@ jobs:
       # the wasm transport is stubbed) at three widths and hands it a frame
       # built to hurt: a full-cap 120-rune remark on every seat at once --
       # latin, CJK and emoji -- six 64-rune policy names, a beat list filled
-      # to the 4 KB label cap and the end-card open. The harness asserts
+      # to the chrome label cap and the end-card open. The harness asserts
       # every string is still FULL-LENGTH and inside its frame, and reports a
       # failure as data-replay-error, which viewer_smoke turns red.
       #

@@ -37,7 +37,8 @@ block labelShape:
       ChromeBeat(tick: 1078, kind: "bigcatch")],
     nil)
   check("the chrome label is valid UTF-8", validateUtf8(label) == -1)
-  check("the chrome label is at most 4 KB", label.len <= MaxChromeLabelBytes)
+  check("the chrome label is inside the label cap",
+    label.len <= MaxChromeLabelBytes)
   var node: JsonNode
   var ok = false
   try:
@@ -112,8 +113,36 @@ block beatKindMapping:
   check("the episode end is an end beat",
     beatKindForEvent("episode_end", %*{}) == "end")
 
+block manifestLengthEpisodeKeepsEveryBeat:
+  ## `beats` ships COMPLETE on the first frame, and the trim loop drops the
+  ## EARLIEST beats first -- so a cap that a full-length episode overruns
+  ## costs the scrubber the opening of the hunt, silently. The longest
+  ## shipped variant is 3 rounds x 960 ticks; the certification replay ran
+  ## 0.042 beats/tick, so budget 150 beats here (more than the ~127 that
+  ## rate implies), with every seat speaking at the rune cap on the same
+  ## frame.
+  var beats: seq[ChromeBeat] = @[]
+  for i in 0 ..< 150:
+    beats.add(ChromeBeat(tick: i * 19,
+      kind: (if i mod 37 == 0: "bigcatch" else: "smallcatch")))
+  var feed: seq[ChromeFeedLine] = @[]
+  for slot in 0 ..< 6:
+    feed.add(ChromeFeedLine(tick: 2870, kind: "say",
+      text: "Cog-" & $chr(ord('A') + slot) & ": " &
+        repeat("\u{72E9}", MaxSayRunes - 8)))
+  let full = buildChromeLabel(2880, 960, 3, 3, 960, "play", "staghunt", "",
+    sampleSeats(), feed, beats, nil)
+  check("a full-length episode's label is inside the cap",
+    full.len <= MaxChromeLabelBytes)
+  let fullNode = parseJson(full)
+  check("not one beat of a full-length episode is dropped",
+    fullNode["beats"].len == beats.len)
+  check("the first beat survives, so the scrubber keeps the opening",
+    fullNode["beats"][0]["t"].getInt() == 0)
+  check("every seat still speaks on that frame", fullNode["feed"].len == 6)
+
 block oversizedLabelIsCapped:
-  ## A pathological feed must not blow the 4 KB label: feed lines go first,
+  ## A pathological feed must not blow the label cap: feed lines go first,
   ## then beats; the seats block and the clock are what the page cannot
   ## render without.
   var feed: seq[ChromeFeedLine] = @[]
@@ -124,7 +153,7 @@ block oversizedLabelIsCapped:
     beats.add(ChromeBeat(tick: i, kind: "smallcatch"))
   let label = buildChromeLabel(1, 1, 1, 3, 960, "play", "staghunt", "",
     sampleSeats(), feed, beats, nil)
-  check("an oversized label is capped at 4 KB",
+  check("an oversized label is capped",
     label.len <= MaxChromeLabelBytes)
   let node = parseJson(label)
   check("the capped label still carries the seats", node["seats"].len == 6)
@@ -253,7 +282,7 @@ block worstCaseFixtureIsReachable:
   ## worst-case renderer fixture hands the real page (acceptance checklist
   ## item 15). It is only worth rendering if it is a label buildChromeLabel
   ## could actually emit: the same keys, every string at the real cap, legal
-  ## beat kinds, inside the 4 KB label cap. A fixture whose strings quietly
+  ## beat kinds, inside the label cap. A fixture whose strings quietly
   ## drift short leaves the gate passing while testing nothing.
   let path = getCurrentDir() / "tools" / "ci" / "fixtures" /
     "worst_case_chrome.json"
@@ -334,7 +363,7 @@ block worstCaseFixtureIsReachable:
         good))
     # The strongest anti-drift check available: feed the fixture's own
     # contents back through buildChromeLabel. If the emitter trims a feed
-    # line, drops a beat for the 4 KB cap or rune-caps a string, the frame
+    # line, drops a beat for the label cap or rune-caps a string, the frame
     # the fixture renders is not one this game can produce.
     var seats: seq[ChromeSeat] = @[]
     for seat in fixture["seats"]:
@@ -364,7 +393,7 @@ block worstCaseFixtureIsReachable:
       fixture["round"].getInt(), fixture["rounds"].getInt(),
       fixture["ticksPerRound"].getInt(), fixture["phase"].getStr(),
       fixture["variant"].getStr(), "", seats, feed, beats, fixture["final"])
-    check("the fixture fits the 4 KB label cap, so it is reachable",
+    check("the fixture fits the label cap, so it is reachable",
       emitted.len <= MaxChromeLabelBytes)
     check("the real emitter reproduces the fixture frame exactly",
       parseJson(emitted) == fixture)

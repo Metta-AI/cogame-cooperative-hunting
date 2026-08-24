@@ -192,7 +192,17 @@ const
   ## in the generic client and in the hosted static replay.
   ChromeSpriteId* = 4090
   ChromeObjectBase* = 16300
-  MaxChromeLabelBytes* = 4096
+  ## The label ships `beats` COMPLETE on the first frame, so the cap has to
+  ## hold a whole manifest-length episode's worth of them. Measured on the
+  ## 1040-tick certification replay: 44 beats, 0.042 beats/tick, and a beat
+  ## serialises as `{"t":1234,"k":"smallcatch"}` = 28 B. A 3000-tick variant
+  ## is therefore ~127 beats ~3.6 kB, which with the six-seat block (~660 B),
+  ## six full-cap remarks (120 runes of CJK = 360 B each) and the clock
+  ## overran the old 4096 and the trim loop dropped the EARLIEST beats --
+  ## the scrubber silently lost the opening of the hunt. 12288 B holds the
+  ## worst case with room to spare and is far inside the u16 the sprite
+  ## label length field carries (art.nim addSprite).
+  MaxChromeLabelBytes* = 12288
 
   ## Reply / recorded-string caps. Every one of these is applied on RUNE
   ## boundaries (see `runeCap` below): a byte-cut multi-byte rune is what
