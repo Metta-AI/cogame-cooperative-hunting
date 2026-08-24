@@ -24,6 +24,15 @@ const
   PlayerWebSocketPath = "/player"
   ConnectRetryDelayMs = 250
   MaxConnectAttempts = 240   ## 60 s of retries, then give up and exit 0
+  ## Every wait in this binary is bounded (checklist item 5). The socket read
+  ## below used to be `receiveMessage(-1)`, which blocks forever: it was
+  ## bounded only by the game closing the socket, so a game that stopped
+  ## sending without closing left the container hanging until the platform
+  ## killed the episode. 5 s is 40 frames at the 8 Hz tick, so it never fires
+  ## during play; the roster wait before the first frame is 45 s, so 120 s of
+  ## total silence is comfortably longer than any legitimate quiet stretch.
+  ReceiveTimeoutMs = 5_000
+  MaxIdleReceiveMs = 120_000
 
 type
   Policy = object
@@ -281,15 +290,22 @@ proc runPlayer(
       connected = true
       ws.send(registrationPacket(policy), BinaryMessage)
       var lastMask = 0xff'u8
+      var idleMs = 0
       while true:
         # whisky's receiveMessage RAISES on a close frame or a truncated
         # read (only a timeout returns none), and mummy's send only queues,
         # so the game's quit(0) can outrun the flushed frame. Catching here
         # and exiting 0 is what keeps the player container's exit code 0
         # (raid 0.1.3 -> 0.1.4).
-        let first = ws.receiveMessage(-1)
+        let first = ws.receiveMessage(ReceiveTimeoutMs)
         if first.isNone:
+          idleMs += ReceiveTimeoutMs
+          if idleMs >= MaxIdleReceiveMs:
+            echo "cooperative-hunting-player: no frame for ",
+              MaxIdleReceiveMs div 1000, " s; exiting 0"
+            quit(0)
           continue
+        idleMs = 0
         var applied = false
         var message = first
         var drained = 0
