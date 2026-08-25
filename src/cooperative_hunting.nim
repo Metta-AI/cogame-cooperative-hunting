@@ -826,6 +826,12 @@ proc websocketHandler(
   of OpenEvent:
     discard
   of MessageEvent:
+    ## mummy hands Ping frames to the application instead of answering
+    ## them itself; the platform's certifier pings /global to check the
+    ## game is alive, so an unanswered ping fails certification.
+    if message.kind == Ping:
+      websocket.send(message.data, Pong)
+      return
     if message.kind != BinaryMessage or message.data.len == 0:
       return
     let head = message.data[0].uint8
