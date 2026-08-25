@@ -59,7 +59,10 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  SLUG: cooperative-hunting
+  # The Coworld-secret namespace, which the server requires to equal the Coworld
+  # name (game.name in the manifest) -- underscores, not the repo/image slug.
+  # Its only uses are `coworld secret put/list` below.
+  SLUG: cooperative_hunting
   IMAGE: coworld-cooperative-hunting
   # 0.1.42 is a FLOOR, not a preference. Two independent reasons:
   # - LIVENESS_MARKER below is only emitted from 0.1.38 on
