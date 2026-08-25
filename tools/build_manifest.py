@@ -245,8 +245,8 @@ the bundled bots' parsers reject unknown message types.
 The same sprite_v1 stream at world scale (384x384 px viewport, no identity
 packet), plus the broadcast chrome smuggled as the **label of a reserved 1x1
 sprite, id 4090**, re-emitted every tick. The body is UTF-8 JSON of at most
-4 KB carrying `tick`, `round`, `rounds`, `ticksPerRound`, `phase`, `variant`,
-`reason`, `seats[]`, `feed[]`, `beats[]` and `final`.
+12 KB (12288 bytes) carrying `tick`, `round`, `rounds`, `ticksPerRound`,
+`phase`, `variant`, `reason`, `seats[]`, `feed[]`, `beats[]` and `final`.
 """
 
 POLICIES = """# Fielding a policy
@@ -665,8 +665,9 @@ manifest = {
                 "viewport, no 0x07 identity packet), plus the broadcast "
                 "chrome carried as the label of a reserved 1x1 sprite, id "
                 "4090, re-emitted every tick. That label is UTF-8 JSON of at "
-                "most 4 KB with tick, round, rounds, ticksPerRound, phase, "
-                "variant, reason, seats[], feed[], beats[] and final."
+                "most 12 KB (12288 bytes) with tick, round, rounds, "
+                "ticksPerRound, phase, variant, reason, seats[], feed[], "
+                "beats[] and final."
             ),
         },
         "docs": {
