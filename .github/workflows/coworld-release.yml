@@ -172,6 +172,7 @@ jobs:
           set +e
           uvx --from "$COWORLD_PKG" coworld certify dist/coworld_manifest.json \
             --no-open-report \
+            --timeout-seconds 300 \
             2>&1 | tee "$RR/certify.log"
           rc="${PIPESTATUS[0]}"
           set -e
