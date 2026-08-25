@@ -692,12 +692,15 @@ manifest = {
     ],
     "certification": {
         "game_config": {
-            # `tokens` is a required property of config_schema, so the fixture
-            # must carry it or a validator reading the fixture against the
-            # schema rejects it. Empty strings are what the runner replaces:
-            # they are schema-valid (minLength 0) and tokenValid() treats an
-            # empty configured token as "no token for this slot".
-            "tokens": ["" for _ in range(SEATS)],
+            # NO `tokens` here. `tokens` is a required property of
+            # config_schema because the RUNNER injects one per seat at launch,
+            # but an authored game_config must omit it: coworld 0.1.42's
+            # manifest_validation.game_config_with_tokens() raises
+            # "game_config must not include runner-managed tokens" and
+            # certify fails at matriculate with manifest_invalid. The
+            # validator (validate_authored_game_config) splices placeholder
+            # tokens in itself before schema-checking, so the fixture still
+            # satisfies the schema's `required`.
             "players": players(),
             "num_agents": SEATS,
             "variant": "staghunt",
