@@ -286,6 +286,37 @@ block pageIsSound:
   check("the page has no zoom or minimap wiring left",
     "attachMinimap" notin page)
 
+block halfSpeedRidesTheWholeChipChain:
+  ## The fleet-wide 1/2x replay speed. This game's playhead is the page's
+  ## local wasm transport (static_replay.js paces ch_frame calls), so half
+  ## speed is a chip chain, not an engine speedIndex: chrome_common builds a
+  ## 0.5x chip (command '5'), the page's SPEED_COMMANDS maps '5' back to a
+  ## 0.5 core speed, and static_replay's frame pacing already accepts
+  ## fractional speeds (its clamp floors at 0.25). Space play/pause is the
+  ## page's own keydown binding; pin it so it stays.
+  let pagePath = getCurrentDir() / "client" / "replay_broadcast.html"
+  let chromePath = getCurrentDir() / "client" / "chrome_common.js"
+  let corePath = getCurrentDir() / "replay-viewer" / "static_replay.js"
+  check("chrome_common.js is in the repo", fileExists(chromePath))
+  check("static_replay.js is in the repo", fileExists(corePath))
+  let page = readFile(pagePath)
+  let chromeJs = readFile(chromePath)
+  let coreJs = readFile(corePath)
+  check("chrome_common's SPEEDS fallback leads with 0.5",
+    "[0.5, 1, 2, 3, 4, 8, 16]" in chromeJs)
+  check("chrome_common maps the 0.5x chip to command '5'",
+    "{ 0.5: '5', 1: '1', 2: '2', 3: '3', 4: '4', 8: '8', 16: '6' }" in
+      chromeJs)
+  check("the page maps command '5' back to a 0.5 core speed",
+    "'5': 0.5" in page)
+  check("the core's frame pacing clamp admits 0.5",
+    "Math.max(0.25, speed)" in coreJs)
+  check("Space pauses playback on the shipped page",
+    "event.key === ' '" in page and "byId('btn-play').onclick(); " &
+      "event.preventDefault();" in page)
+  check("the generator stays in step with the committed page",
+    "'5': 0.5" in readFile(getCurrentDir() / "tools" / "build_replay_page.py"))
+
 block worstCaseFixtureIsReachable:
   ## tools/ci/fixtures/worst_case_chrome.json is the frame ci.yml's
   ## worst-case renderer fixture hands the real page (acceptance checklist
