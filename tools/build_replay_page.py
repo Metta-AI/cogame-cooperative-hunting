@@ -585,7 +585,7 @@ GAME_SCRIPT = r"""
     // between sides and a hunt has no sides. Feeding it six same-coloured
     // score lines would be a fiction, so the band is left as the starter
     // ships it rather than filled with one.
-    var SPEED_COMMANDS = { '1': 1, '2': 2, '3': 3, '4': 4, '8': 8, '6': 16 };
+    var SPEED_COMMANDS = { '5': 0.5, '1': 1, '2': 2, '3': 3, '4': 4, '8': 8, '6': 16 };
 
     function sendTransportCommand(command) {
       // chrome_common's speed chips send the wire command chars the starter
