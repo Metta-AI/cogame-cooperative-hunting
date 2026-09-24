@@ -35,7 +35,10 @@ for variant in ["staghunt", "coop-mining", "lbf", "predator-prey"]:
     y: bot.selfTileY * StagTileSize - bot.cameraY,
     spriteId: PreySpriteBase)
 
-  let menu = bot.jevMenu()
+  var playerRoles = initTable[int, string]()
+  for player in bot.visiblePlayers():
+    playerRoles[player.objectId] = "hunter"
+  let menu = bot.jevMenu(variant, "hunter", playerRoles)
   doAssert menu.len > 1 and menu.len <= 255
   doAssert menu.hasKey("baseline")
   var selected = ""
@@ -65,5 +68,25 @@ for variant in ["staghunt", "coop-mining", "lbf", "predator-prey"]:
   }}}
   let action = selectedAction(payload, menu)
   doAssert action.target != "none" and action.side.len > 0
+
+  if variant == "predator-prey":
+    bot.objects.setLen(max(bot.objects.len, BerryObjectBase + 1))
+    bot.objects[BerryObjectBase] = ObjectState(present: true,
+      x: targetX * StagTileSize - bot.cameraX,
+      y: bot.selfTileY * StagTileSize - bot.cameraY,
+      spriteId: BerryRipeSpriteId)
+    let foragerMenu = bot.jevMenu(variant, "forager", playerRoles)
+    doAssert foragerMenu.hasKey("baseline")
+    doAssert foragerMenu.hasKey("berries@" & $targetX & "," &
+      $bot.selfTileY & "|on")
+    for name in foragerMenu.keys:
+      doAssert not name.startsWith("rabbit@")
+      doAssert not name.startsWith("player-")
+      if name.startsWith("berries@"):
+        doAssert name.endsWith("|on")
+    let hunterMenu = bot.jevMenu(variant, "hunter", playerRoles)
+    for name in hunterMenu.keys:
+      doAssert not name.startsWith("berries@")
+      doAssert not name.startsWith("player-")
 
 echo "Cooperative Hunting Jev policy menu: four variants passed"

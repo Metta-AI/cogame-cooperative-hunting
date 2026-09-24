@@ -28,7 +28,9 @@ proc targetName(sight: PreySight): string =
   of BerryRipeSpriteId: "berries"
   else: "food"
 
-proc jevMenu*(bot: Bot): JevMenu =
+proc jevMenu*(
+  bot: Bot, variant, role: string, playerRoles: Table[int, string]
+): JevMenu =
   result = initOrderedTable[string, JevAction]()
   result["baseline"] = JevAction(target: "none", side: "any")
   var targets = bot.visiblePrey()
@@ -42,22 +44,34 @@ proc jevMenu*(bot: Bot): JevMenu =
       result = cmp(a.objectId, b.objectId)
   )
   for sight in targets[0 ..< min(targets.len, MaxJevPreyTargets)]:
+    if (role == "forager") != (sight.itemSprite == BerryRipeSpriteId):
+      continue
     let target = sight.targetName() & "@" & $sight.tileX & "," &
       $sight.tileY
+    if sight.itemSprite == BerryRipeSpriteId:
+      result[target & "|on"] = JevAction(
+        intent: "forage", target: target, side: "on",
+        targetX: sight.tileX, targetY: sight.tileY)
+      continue
     for side in Sides:
       result[target & "|" & side] = JevAction(
         intent: (if sight.isAnimal: "hunt" else: "forage"),
         target: target, side: side, targetX: sight.tileX,
         targetY: sight.tileY)
-  for player in bot.visiblePlayers():
-    if player.objectId == bot.selfObjectId:
-      continue
-    let target = "player-" & $player.objectId & "@" &
-      $player.tileX & "," & $player.tileY
-    for side in Sides:
-      result[target & "|" & side] = JevAction(
-        intent: "regroup", target: target, side: side,
-        targetX: player.tileX, targetY: player.tileY)
+  if role == "hunter":
+    for player in bot.visiblePlayers():
+      if player.objectId == bot.selfObjectId:
+        continue
+      if variant == "predator-prey" and
+          (not playerRoles.hasKey(player.objectId) or
+           playerRoles[player.objectId] != "forager"):
+        continue
+      let target = "player-" & $player.objectId & "@" &
+        $player.tileX & "," & $player.tileY
+      for side in Sides:
+        result[target & "|" & side] = JevAction(
+          intent: "regroup", target: target, side: side,
+          targetX: player.tileX, targetY: player.tileY)
 
 proc selectedAction*(payload: JsonNode, menu: JevMenu): JevAction =
   let answer = payload["answers"]["decision"]
@@ -78,8 +92,11 @@ proc selectedAction*(payload: JsonNode, menu: JevMenu): JevAction =
   doAssert abs(total - 1) <= probabilities.len.float * 0.005 + 1e-6
   result = menu[selected]
 
-proc chooseJevAction*(bot: Bot, slot: int): JevAction =
-  let menu = bot.jevMenu()
+proc chooseJevAction*(
+  bot: Bot, slot: int, variant, role: string,
+  playerRoles: Table[int, string]
+): JevAction =
+  let menu = bot.jevMenu(variant, role, playerRoles)
   var criteria = newJObject()
   for choice, action in menu.pairs:
     criteria[choice] = %(if choice == "baseline":
@@ -114,14 +131,18 @@ proc chooseJevAction*(bot: Bot, slot: int): JevAction =
     headers["x-coworld-player-slot"] = $slot
   var seenPlayers = newJArray()
   for player in bot.visiblePlayers():
-    seenPlayers.add(%*{"x": player.tileX, "y": player.tileY,
-      "self": player.objectId == bot.selfObjectId})
+    if playerRoles.hasKey(player.objectId):
+      seenPlayers.add(%*{"object_id": player.objectId,
+        "x": player.tileX, "y": player.tileY,
+        "self": player.objectId == bot.selfObjectId,
+        "role": playerRoles[player.objectId]})
   let body = %*{
     "model": model,
-    "state": "You are a hunter in Cooperative Hunting. Choose a target " &
-      "and a side using only your seat-visible sprites. Rabbits and iron " &
-      "can score solo; larger prey and gold need allies on distinct sides. " &
-      "In predator-prey, visible player targets may be prey or allies; " &
+    "state": "You are a " & role & " in Cooperative Hunting variant " &
+      variant & ". Choose a target and a side using only your seat-visible " &
+      "sprites. Rabbits and iron can score solo; larger prey and gold need " &
+      "allies on distinct sides. Foragers score on ripe berries. Visible " &
+      "player roles are shown for visible players only. " &
       "A half-formed ring can lose energy. The player executor navigates " &
       "toward your choice until the next planning turn. Your tile is (" &
       $bot.selfTileX & "," & $bot.selfTileY & "), energy " &

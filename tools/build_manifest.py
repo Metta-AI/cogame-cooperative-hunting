@@ -231,7 +231,8 @@ or
 
 An external player receives the same seat-private sprite stream and sends
 ordinary input masks. Its baseline names its player-side fallback; the game
-does not choose actions or make model calls for it.
+does not choose actions or make model calls for it. Any registered policy can
+request seat information by including `"seat_info": true`.
 
 A malformed, oversized or non-UTF-8 body is dropped and the seat is treated as
 `{"kind":"scripted","baseline":"big_game_hunter"}`. It is never a disconnect.
@@ -252,6 +253,21 @@ planning turn (every 120 ticks).
 
 `src` is `llm` or `fallback:<cause>`. Scripted seats never receive it, because
 the bundled bots' parsers reject unknown message types.
+
+### `0x92` server -> client, seat information
+
+Sent to registered players that request `"seat_info": true`, before each
+private sprite frame. The body has the same
+length encoding as `0x91` and contains the current `variant`, own `role`
+(`hunter` or `forager`), zero-based `round`, and roles of players currently
+visible to this seat. `object_id` matches the sprite object id. It never
+contains another seat's hidden state. All policy types can request it; clients
+that only parse `sprite_v1` continue to receive just sprite frames.
+
+```json
+{"variant":"predator-prey","role":"hunter","round":0,
+ "visible_players":[{"object_id":5000,"role":"hunter"}]}
+```
 
 ## Global protocol
 
@@ -677,8 +693,11 @@ manifest = {
                 "{\"kind\":\"scripted\",\"baseline\":\"...\"}, or "
                 "{\"kind\":\"external\",\"baseline\":\"...\"}. A malformed "
                 "registration is treated as the big_game_hunter baseline, "
-                "never as a disconnect. See the protocol doc page for byte "
-                "layouts."
+                "never as a disconnect. A registration with seat_info=true "
+                "also receives 0x92 <u16 len> <UTF-8 JSON> with variant, "
+                "own role, round, and roles of visible players "
+                "before each private sprite frame. See the protocol doc "
+                "page for byte layouts."
             ),
             "global": text(
                 "The same sprite_v1 stream at world scale (384x384 px "

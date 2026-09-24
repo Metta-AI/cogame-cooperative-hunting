@@ -35,6 +35,7 @@ const
   ReceiveTimeoutMs = 5_000
   MaxIdleReceiveMs = 120_000
   JevDecisionFrames = 120
+  MsgSeatInfo = 0x92'u8
 
 type
   Policy = object
@@ -83,7 +84,8 @@ proc registrationBody(policy: Policy): string =
   if policy.isPrompt:
     $(%*{"kind": "prompt", "prompt": policy.prompt})
   elif policy.isJev:
-    $(%*{"kind": "external", "baseline": baselineName(policy.baseline)})
+    $(%*{"kind": "external", "baseline": baselineName(policy.baseline),
+      "seat_info": true})
   else:
     $(%*{"kind": "scripted", "baseline": baselineName(policy.baseline)})
 
@@ -221,7 +223,7 @@ proc decideWithPlan*(
   if offset.found:
     goalX = plan.targetX + offset.dx
     goalY = plan.targetY + offset.dy
-  else:
+  elif plan.side != "on":
     let side = bestCaptureSide(bot.selfTileX, bot.selfTileY, plan.targetX,
       plan.targetY, kind, players)
     if side.found:
@@ -306,6 +308,10 @@ proc runPlayer(
       var bot = initBot(policy.baseline, slot)
       var plan = ActivePlan()
       var lastJevFrame = -1
+      var variant = ""
+      var role = ""
+      var round = -1
+      var playerRoles = initTable[int, string]()
       let ws = newWebSocket(endpoint)
       connected = true
       ws.send(registrationPacket(policy), BinaryMessage)
@@ -337,6 +343,23 @@ proc runPlayer(
                 let next = parsePlanMessage(data)
                 if next.valid:
                   plan = next
+              elif data[0].uint8 == MsgSeatInfo:
+                doAssert data.len >= 3
+                let length = int(data[1].uint8) or
+                  (int(data[2].uint8) shl 8)
+                doAssert data.len == 3 + length
+                let seatInfo = parseJson(data[3 ..< 3 + length])
+                variant = seatInfo["variant"].getStr()
+                role = seatInfo["role"].getStr()
+                playerRoles.clear()
+                for visible in seatInfo["visible_players"]:
+                  playerRoles[visible["object_id"].getInt()] =
+                    visible["role"].getStr()
+                let nextRound = seatInfo["round"].getInt()
+                if nextRound != round:
+                  plan = ActivePlan()
+                  lastJevFrame = -1
+                  round = nextRound
               elif bot.applySpritePacket(data):
                 inc bot.frameTick
                 applied = true
@@ -356,13 +379,15 @@ proc runPlayer(
           bot.deriveCamera()
           bot.findSelf(bot.visiblePlayers())
           if bot.cameraKnown and bot.selfFound and
-              bot.jevMenu().len > 1:
+              variant.len > 0 and role.len > 0 and
+              bot.jevMenu(variant, role, playerRoles).len > 1:
             if lastMask != 0'u8:
               ws.send(playerInputBlob(0), BinaryMessage)
               lastMask = 0
             inJevDecision = true
             let selected = bot.chooseJevAction(
-              bot.selfObjectId - PlayerObjectBase)
+              bot.selfObjectId - PlayerObjectBase, variant, role,
+              playerRoles)
             inJevDecision = false
             plan = ActivePlan(valid: true, turn: bot.frameTick,
               intent: selected.intent, target: selected.target,

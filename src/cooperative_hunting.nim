@@ -2,9 +2,9 @@
 ##
 ## Forked from `Metta-AI/coworld-staghunt` `src/staghunt.nim`'s server half
 ## (routes, roster, websocket plumbing, the tick loop, results) and extended
-## with: the two additive protocol messages (`0x90` registration, `0x91`
-## plan), the LLM planning turn on its own thread, the JSON replay, the
-## three legal end reasons, and the 20 s shutdown grace.
+## with: the additive protocol messages (`0x90` registration, `0x91` plan,
+## `0x92` seat information), the LLM planning turn on its own thread, the JSON
+## replay, the three legal end reasons, and the 20 s shutdown grace.
 ##
 ## staghunt's binary replay blob and its `runReplayServer` / `/client/replay`
 ## live-server path are DELETED, not adapted: replays here are a static wasm
@@ -25,6 +25,7 @@ const
 
   MsgRegister = 0x90'u8
   MsgPlan = 0x91'u8
+  MsgSeatInfo = 0x92'u8
 
   ## After the artifacts are written, /healthz and /global keep answering for
   ## this long before quit(0). The certification runner pings /global AFTER
@@ -36,6 +37,7 @@ type
     kind: PolicyKind
     prompt: string
     baseline: string
+    seatInfo: bool
 
   Seat = object
     slot: int
@@ -44,6 +46,7 @@ type
     kind: PolicyKind
     prompt: string
     baseline: string
+    seatInfo: bool
     connected: bool
     disconnected: bool
     note: string
@@ -807,6 +810,7 @@ proc parseRegistration(body: string): Registration =
     return
   try:
     let node = parseJson(body)
+    result.seatInfo = node{"seat_info"}.getBool()
     if node{"kind"}.getStr() == "prompt":
       let prompt = node{"prompt"}.getStr().strip()
       if prompt.len > 0:
@@ -820,6 +824,27 @@ proc parseRegistration(body: string): Registration =
       result.baseline = baselineName(parseBaselineKind(baseline))
   except CatchableError:
     discard
+
+proc seatInfoPacket*(sim: SimServer, slot: int): seq[uint8] =
+  var visiblePlayers = newJArray()
+  for targetIndex, player in sim.players:
+    if sim.visibleToSeat(slot, targetIndex):
+      visiblePlayers.add(%*{
+        "object_id": PlayerObjectBase + targetIndex,
+        "role": (if player.role == roleForager: "forager" else: "hunter")
+      })
+  let body = $(%*{
+    "variant": sim.config.variant,
+    "role": (if sim.players[slot].role == roleForager: "forager"
+             else: "hunter"),
+    "round": sim.roundIndex,
+    "visible_players": visiblePlayers
+  })
+  doAssert body.len <= high(uint16).int
+  result = @[MsgSeatInfo, uint8(body.len and 0xff),
+    uint8((body.len shr 8) and 0xff)]
+  for ch in body:
+    result.add(uint8(ch.ord))
 
 proc websocketHandler(
   websocket: WebSocket, event: WebSocketEvent, message: Message
@@ -993,6 +1018,7 @@ proc runServerLoop(host: string, port: int, config: GameConfig) =
             let registration = appState.registrations[sockets[slot]]
             seat.kind = registration.kind
             seat.prompt = registration.prompt
+            seat.seatInfo = registration.seatInfo
             if registration.baseline.len > 0:
               seat.baseline = registration.baseline
     seats.add(seat)
@@ -1095,6 +1121,9 @@ proc runServerLoop(host: string, port: int, config: GameConfig) =
       var nextState: ViewerState
       let bytes = ep.sim.buildPlayerFrame(slot, state, nextState)
       try:
+        if ep.seats[slot].seatInfo:
+          sockets[slot].send(blobFromBytes(ep.sim.seatInfoPacket(slot)),
+            BinaryMessage)
         sockets[slot].send(blobFromBytes(bytes), BinaryMessage)
         {.gcsafe.}:
           withLock appState.lock:

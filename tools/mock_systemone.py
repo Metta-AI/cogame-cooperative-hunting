@@ -29,7 +29,10 @@ class Handler(BaseHTTPRequestHandler):
             }
         ).encode()
         with self.log_path.open("a") as log:
-            log.write(json.dumps({"selected": selected, "choices": len(criteria)}) + "\n")
+            log.write(
+                json.dumps({"selected": selected, "choices": len(criteria), "state": request["state"]})
+                + "\n"
+            )
         self.send_response(200)
         self.send_header("content-type", "application/json")
         self.send_header("content-length", str(len(response)))
