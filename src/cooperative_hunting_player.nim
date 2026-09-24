@@ -40,7 +40,7 @@ type
     prompt: string
     baseline: BaselineKind
 
-  ActivePlan = object
+  ActivePlan* = object
     valid: bool
     turn: int
     intent: string
@@ -94,7 +94,7 @@ proc registrationPacket(policy: Policy): string =
 # The executor: a plan turned into per-tick masks
 # ---------------------------------------------------------------------------
 
-proc parsePlanMessage(data: string): ActivePlan =
+proc parsePlanMessage*(data: string): ActivePlan =
   ## `0x91 <u16 len> <len bytes UTF-8 JSON>`.
   if data.len < 3 or data[0].uint8 != 0x91'u8:
     return
@@ -146,7 +146,7 @@ proc preyKindOfTarget(target: string): PreyKind =
   elif head.startsWith("elephant"): Elephant
   else: Boar
 
-proc decideWithPlan(
+proc decideWithPlan*(
   bot: var Bot, plan: ActivePlan, fallback: BaselineKind
 ): uint8 =
   ## Priority order: a capture this tick, then energy, then the plan, then

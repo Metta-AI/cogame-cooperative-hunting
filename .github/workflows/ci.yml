@@ -154,6 +154,11 @@ jobs:
           nim c -d:release --hints:off --path:src -o:/tmp/cooperative-hunting-train-bridge tools/train_bridge.nim
           python3 tools/test_train_bridge.py /tmp/cooperative-hunting-train-bridge
 
+      - name: Exercise Metta post-training export
+        run: |
+          nim c -d:release --hints:off --path:src -o:/tmp/cooperative-hunting-export tools/export_posttrain.nim
+          python3 tools/test_export_posttrain.py /tmp/cooperative-hunting-export
+
   # ---------------------------------------------------------------------
   # Packaging smoke: the production image builds, and one real episode runs
   # end to end in raw docker with the certification fixture's seat mix.

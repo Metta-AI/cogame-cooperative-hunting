@@ -535,7 +535,7 @@ proc pollPlanBatch(ep: var Episode) =
         "cause": cause
       })
 
-proc planPacket(plan: Plan): seq[uint8] =
+proc planPacket*(plan: Plan): seq[uint8] =
   var partners = newJArray()
   for p in plan.partners:
     partners.add(%p)

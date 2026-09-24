@@ -29,6 +29,35 @@ scores `[52, 53, 48, 33, 62, 33]`, exactly matching the source's
 `runEpisodeOffline` with six `big_game_hunter` players and the same seed.
 Full teacher and random episodes completed in all four variants.
 
-The hosted prompt player expects a plan with a legal target and side. The
-published scripted player emits button masks, not plans, so this bridge does
-not claim a Metta post-training dataset for that prompt policy.
+# Metta post-training data
+
+The hosted prompt player expects plans with a legal target and side. The
+exporter uses the game's observation builder, plan parser, wire packet, and
+player executor to record complete games from a nearest legal target teacher.
+Each decision includes the seat's hosted system and user messages and the
+parsed plan. The teacher chooses from the same visible legal target list the
+prompt policy receives; its data measure a runnable training path, not league
+strength.
+
+```sh
+nim c -d:release --path:src -o:/tmp/ch-export-posttrain tools/export_posttrain.nim
+/tmp/ch-export-posttrain /tmp/ch-staghunt 10 1 staghunt
+```
+
+Replace the output path and final argument for another certified variant.
+The exporter refuses to overwrite existing output and splits by game seed.
+Train with Metta post-training:
+
+```sh
+nix develop -c uv run --package metta-posttrain --extra train \
+  python -m metta_posttrain.train --dataset /tmp/ch-staghunt \
+  --output /tmp/ch-adapter --model Qwen/Qwen3-0.6B \
+  --max-steps 100 --max-length 4096
+```
+
+Each local ten-game variant exported 1,152 train and 288 validation examples.
+All examples fit a 4,096-token context. One CPU optimizer step reduced
+four-example validation loss from 1.7379 to 1.7325 (Stag Hunt), 1.7359 to
+1.7306 (Cooperative Mining), 1.7379 to 1.7325 (Level-Based Foraging), and
+1.7284 to 1.7230 (Predator–Prey). This verifies training input and update;
+it does not establish stronger league play.
