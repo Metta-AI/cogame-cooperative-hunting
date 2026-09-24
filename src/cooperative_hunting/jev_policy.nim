@@ -89,7 +89,7 @@ proc selectedAction*(payload: JsonNode, menu: JevMenu): JevAction =
     if value > best:
       best = value
       selected = choice
-  doAssert abs(total - 1) <= probabilities.len.float * 0.005 + 1e-6
+  doAssert abs(total - 1) <= 0.01
   result = menu[selected]
 
 proc chooseJevAction*(
