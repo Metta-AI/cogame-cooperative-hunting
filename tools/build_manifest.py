@@ -61,6 +61,9 @@ Both champion policies are prompts. A seat registers either a `PLAYER_PROMPT`
 commit to and from which side, and a controller walks the hunter there tile by
 tile) or a `PLAYER_SCRIPTED=<name>` baseline (one of eight compiled hunters
 shipped in the same image). Same image, same entrypoint, switched by env.
+An external player can instead register `kind: external`, read the same
+seat-private sprite stream, and submit ordinary input masks. It is labeled
+`external` in results and replay; the game makes no model call for that seat.
 
 ## FAQ
 
@@ -220,6 +223,16 @@ or
 {"kind": "scripted", "baseline": "big_game_hunter"}
 ```
 
+or
+
+```json
+{"kind": "external", "baseline": "big_game_hunter"}
+```
+
+An external player receives the same seat-private sprite stream and sends
+ordinary input masks. Its baseline names its player-side fallback; the game
+does not choose actions or make model calls for it.
+
 A malformed, oversized or non-UTF-8 body is dropped and the seat is treated as
 `{"kind":"scripted","baseline":"big_game_hunter"}`. It is never a disconnect.
 
@@ -287,6 +300,12 @@ network calls -- the episode still completes with `reason: complete`.
 Set `PLAYER_SCRIPTED` to one of `rabbiteer`, `nearest_hunter`, `stag_hunter`,
 `moose_hunter`, `elephant_hunter`, `big_game_hunter`, `sidekick`, `modeler`.
 The seat never touches the LLM.
+
+## External players
+
+Register `kind: external` to use the same sprite observations and input-mask
+actions from another player policy. The game records `external` in results
+and replay. Its rules, seat visibility, and action validation are unchanged.
 
 ## Anonymity
 
@@ -550,7 +569,7 @@ RESULTS_SCHEMA = {
     "properties": {
         "names": str_array("Real policy name per seat, in slot order."),
         "aliases": str_array("In-game alias per seat (Cog-A..Cog-F)."),
-        "kinds": str_array("'prompt' or 'scripted' per seat."),
+        "kinds": str_array("'prompt', 'scripted', or 'external' per seat."),
         "scores": int_array("Cumulative score per seat across all rounds. Higher is better; never negative."),
         "energy": int_array("Final energy per seat."),
         "fallbacks": int_array("Planning turns on which this seat fell back to its scripted baseline."),
@@ -654,8 +673,9 @@ manifest = {
                 "registered a prompt. Client->server: the 2-byte input packet "
                 "[0x84, mask] (bit 0 up, 1 down, 2 left, 3 right, 4 A, 5 B, 6 "
                 "select), and once on connect 0x90 <u16 len> <UTF-8 JSON> "
-                "carrying either {\"kind\":\"prompt\",\"prompt\":\"...\"} or "
-                "{\"kind\":\"scripted\",\"baseline\":\"...\"}. A malformed "
+                "carrying {\"kind\":\"prompt\",\"prompt\":\"...\"}, "
+                "{\"kind\":\"scripted\",\"baseline\":\"...\"}, or "
+                "{\"kind\":\"external\",\"baseline\":\"...\"}. A malformed "
                 "registration is treated as the big_game_hunter baseline, "
                 "never as a disconnect. See the protocol doc page for byte "
                 "layouts."

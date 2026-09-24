@@ -225,7 +225,7 @@ proc chromeSeats(ep: Episode): seq[ChromeSeat] =
       slot: seat.slot,
       alias: p.alias,
       name: seat.name,
-      kind: (if seat.kind == pkPrompt: "prompt" else: "scripted"),
+      kind: policyKindName(seat.kind),
       color: p.colorIndex,
       score: p.score,
       energy: p.energy,
@@ -317,7 +317,7 @@ proc resultsJson(ep: Episode): JsonNode =
     names.add(%(if ep.seats[i].name.len > 0: ep.seats[i].name
                 else: "player_" & $ep.seats[i].slot))
     aliases.add(%p.alias)
-    kinds.add(%(if ep.seats[i].kind == pkPrompt: "prompt" else: "scripted"))
+    kinds.add(%policyKindName(ep.seats[i].kind))
     scores.add(%max(0, totals[i]))
     energy.add(%p.energy)
     fallbacks.add(%ep.seats[i].fallbacks)
@@ -813,6 +813,8 @@ proc parseRegistration(body: string): Registration =
         result.kind = pkPrompt
         result.prompt = runeCap(prompt, MaxPromptRunes)
         return
+    if node{"kind"}.getStr() == "external":
+      result.kind = pkExternal
     let baseline = node{"baseline"}.getStr().strip()
     if baseline.len > 0:
       result.baseline = baselineName(parseBaselineKind(baseline))
