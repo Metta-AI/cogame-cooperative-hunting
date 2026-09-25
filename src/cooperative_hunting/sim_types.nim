@@ -259,6 +259,7 @@ type
   PolicyKind* = enum
     pkScripted
     pkPrompt
+    pkExternal
 
   RoundPhase* = enum
     RoundPlaying
@@ -446,6 +447,12 @@ type
     pendingCaptures*: seq[Capture]
     ## Events logged on the current tick, drained by the caller.
     pendingEvents*: seq[EventRecord]
+
+proc policyKindName*(kind: PolicyKind): string =
+  case kind
+  of pkScripted: "scripted"
+  of pkPrompt: "prompt"
+  of pkExternal: "external"
 
 proc runeCap*(text: string, limit: int): string =
   ## Truncate on a RUNE boundary, never a byte boundary. Applied to every

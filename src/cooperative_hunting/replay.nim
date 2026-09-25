@@ -232,7 +232,7 @@ proc seatsNode*(sim: SimServer, baselines: seq[string]): JsonNode =
       "slot": p.slot,
       "alias": runeCap(p.alias, MaxNameRunes),
       "name": runeCap(p.name, MaxNameRunes),
-      "kind": (if p.kind == pkPrompt: "prompt" else: "scripted"),
+      "kind": policyKindName(p.kind),
       "baseline": (if i < baselines.len: baselines[i] else: ""),
       "color": p.colorIndex,
       "level": p.level,
@@ -485,7 +485,10 @@ proc initSimFromDoc*(doc: ReplayDoc): SimServer =
       level: seat.level,
       facing: FaceDown,
       energy: StartEnergy,
-      kind: (if seat.kind == "prompt": pkPrompt else: pkScripted)
+      kind: (case seat.kind
+        of "prompt": pkPrompt
+        of "external": pkExternal
+        else: pkScripted)
     ))
 
 proc applyTick*(sim: var SimServer, doc: ReplayDoc, index: int) =

@@ -41,6 +41,9 @@ USE_BEDROCK=true /bin/cooperative-hunting-player
 
 # a compiled baseline
 PLAYER_SCRIPTED=big_game_hunter /bin/cooperative-hunting-player
+
+# a Jev player policy over the same private sprites and input masks
+PLAYER_JEV=1 TYPESAFE_API_KEY=<key> /bin/cooperative-hunting-player
 ```
 
 A prompt seat registers its prompt with the game over the additive `0x90`
@@ -52,6 +55,15 @@ walks the hunter to the named side tile by tile. An unusable reply is retried
 once and then falls back to `PLAYER_FALLBACK_SCRIPTED` (default
 `big_game_hunter`). With no credentials at all the client disables itself and
 makes zero network calls; the episode still completes.
+
+The optional Jev policy reads its own sprite stream and seat information.
+Every 120 received frames it ranks visible animals, items, and players with System One, then uses
+the existing player-side plan executor to emit ordinary input masks. Its
+model call, candidate menu, and ranking stay in the player container. The
+game registers that seat as `external` for results and replay; the normal
+prompt and scripted seats keep their behavior. Jev does not generate chat or
+private notes. A missing model credential or invalid response fails the Jev
+player instead of silently reporting a scripted decision.
 
 The eight baselines are `rabbiteer`, `nearest_hunter`, `stag_hunter`,
 `moose_hunter`, `elephant_hunter`, `big_game_hunter`, `sidekick`, `modeler` —
@@ -97,6 +109,15 @@ tools/ci/docker_smoke.sh coworld-cooperative-hunting:ci
 on a per-run network from the certification fixture, and asserts the game
 **and every player** exit 0.
 
+Run `bash tools/local_jev_smoke.sh` after building the image with
+`docker build --platform linux/amd64 -t coworld-cooperative-hunting:jev-policy .`.
+It seats one Jev policy and five ordinary policies on one local game build,
+uses a deterministic local System One fixture, and retains results and replay
+in an ignored `dist/local-jev-smoke.*` directory.
+Use `JEV_SLOT=1 SMOKE_VARIANT=predator-prey bash tools/local_jev_smoke.sh`
+to check the forager role and berry scoring. Add `SMOKE_ROUNDS=2` to check
+the role switch and hunter target filtering.
+
 Tests need Nim 2.2.4 and the `nimby.lock` package tree:
 
 ```bash
@@ -125,15 +146,22 @@ fillers.
 
 ## Protocol
 
-bitworld **sprite_v1** plus exactly two additive messages:
+bitworld **sprite_v1** plus three additive messages:
 
 - `0x90` client→server registration, once on connect:
   `0x90 <u16 len> <UTF-8 JSON>` carrying
-  `{"kind":"prompt","prompt":"…"}` or `{"kind":"scripted","baseline":"…"}`.
+  `{"kind":"prompt","prompt":"…"}`,
+  `{"kind":"scripted","baseline":"…"}`, or
+  `{"kind":"external","baseline":"…"}`.
   A malformed body is treated as the `big_game_hunter` baseline, never a
   disconnect.
 - `0x91` server→client plan, only to seats that registered a prompt, at most
   once per planning turn.
+- `0x92` server→client seat information, before each private sprite frame:
+  `0x92 <u16 len> <UTF-8 JSON>` with the game variant, own current role,
+  round, and roles of players visible to this seat. Any policy can request it
+  with `"seat_info":true` in registration; existing sprite clients do not
+  receive it. No hidden player is included.
 
 The `/global` stream is the same sprite_v1 at world scale plus the broadcast
 chrome carried as the label of a reserved 1×1 sprite, id **4090**, which
