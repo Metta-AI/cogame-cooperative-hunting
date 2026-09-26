@@ -42,8 +42,6 @@ USE_BEDROCK=true /bin/cooperative-hunting-player
 # a compiled baseline
 PLAYER_SCRIPTED=big_game_hunter /bin/cooperative-hunting-player
 
-# a Jev player policy over the same private sprites and input masks
-PLAYER_JEV=1 TYPESAFE_API_KEY=<key> /bin/cooperative-hunting-player
 ```
 
 A prompt seat registers its prompt with the game over the additive `0x90`
@@ -56,14 +54,10 @@ once and then falls back to `PLAYER_FALLBACK_SCRIPTED` (default
 `big_game_hunter`). With no credentials at all the client disables itself and
 makes zero network calls; the episode still completes.
 
-The optional Jev policy reads its own sprite stream and seat information.
-Every 120 received frames it ranks visible animals, items, and players with System One, then uses
-the existing player-side plan executor to emit ordinary input masks. Its
-model call, candidate menu, and ranking stay in the player container. The
-game registers that seat as `external` for results and replay; the normal
-prompt and scripted seats keep their behavior. Jev does not generate chat or
-private notes. A missing model credential or invalid response fails the Jev
-player instead of silently reporting a scripted decision.
+External policies can request private seat information with `seat_info: true`
+in their `kind: "external"` registration. They receive their role and the roles
+of visible players alongside the ordinary sprite stream and return input masks.
+The game owns visibility, scoring, results, and replay.
 
 The eight baselines are `rabbiteer`, `nearest_hunter`, `stag_hunter`,
 `moose_hunter`, `elephant_hunter`, `big_game_hunter`, `sidekick`, `modeler` —
@@ -108,15 +102,6 @@ tools/ci/docker_smoke.sh coworld-cooperative-hunting:ci
 `tools/ci/docker_smoke.sh` runs one game container plus six player containers
 on a per-run network from the certification fixture, and asserts the game
 **and every player** exit 0.
-
-Run `bash tools/local_jev_smoke.sh` after building the image with
-`docker build --platform linux/amd64 -t coworld-cooperative-hunting:jev-policy .`.
-It seats one Jev policy and five ordinary policies on one local game build,
-uses a deterministic local System One fixture, and retains results and replay
-in an ignored `dist/local-jev-smoke.*` directory.
-Use `JEV_SLOT=1 SMOKE_VARIANT=predator-prey bash tools/local_jev_smoke.sh`
-to check the forager role and berry scoring. Add `SMOKE_ROUNDS=2` to check
-the role switch and hunter target filtering.
 
 Tests need Nim 2.2.4 and the `nimby.lock` package tree:
 
