@@ -672,9 +672,7 @@ manifest = {
             "type": "game",
             "image": IMAGE,
             "run": ["/bin/cooperative-hunting", "--address:0.0.0.0", "--port:8080"],
-            "env": {
-                "ANTHROPIC_API_KEY_URI": "secret://coworld/cooperative_hunting/anthropic_api_key"
-            },
+            "env": {},
             "source_url": REPO,
         },
         "replay_viewer": {"bundle": "static-replay-viewer"},
