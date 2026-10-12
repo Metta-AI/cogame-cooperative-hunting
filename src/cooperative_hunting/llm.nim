@@ -84,12 +84,13 @@ type
     error*: string
 
   LlmTransport* = enum
-    ltNone, ltBedrock, ltAnthropic
+    ltNone, ltSidecar, ltBedrock, ltAnthropic
 
   LlmClient* = ref object
     curl: Curly
     transport*: LlmTransport
     apiKey: string
+    sidecarEndpoint: string
     bedrockEndpoint: string
     bedrockModels: seq[string]
     bedrockModel: int
@@ -158,6 +159,13 @@ proc newLlmClient*(config: GameConfig): LlmClient =
     maxOutputTokens: config.maxOutputTokens,
     timeoutSeconds: config.planTimeoutSeconds
   )
+  let sidecarEndpoint = getEnv("COWORLD_LLM_ENDPOINT").strip()
+  if sidecarEndpoint.len > 0:
+    result.transport = ltSidecar
+    result.sidecarEndpoint = sidecarEndpoint.strip(chars = {'/'}, leading = false)
+    result.model = getEnv("COWORLD_LLM_MODEL", "anthropic/claude-haiku-4.5")
+    result.curl = newCurly()
+    return
   let bedrockEndpoint = getEnv("AWS_ENDPOINT_URL_BEDROCK_RUNTIME").strip()
   let bedrockToken = getEnv("AWS_BEARER_TOKEN_BEDROCK").strip()
   if bedrockEndpoint.len > 0 or bedrockToken.len > 0:
@@ -521,7 +529,7 @@ proc parsePlan*(
 # Transport
 # ---------------------------------------------------------------------------
 
-proc requestFor(client: LlmClient, system, user: string):
+proc requestFor(client: LlmClient, system, user: string, slot: int):
     tuple[url: string, headers: HttpHeaders, body: string] =
   var body = %*{
     "max_tokens": client.maxOutputTokens,
@@ -529,12 +537,18 @@ proc requestFor(client: LlmClient, system, user: string):
     "messages": [{"role": "user", "content": user}]
   }
   var headers: HttpHeaders
+  if client.transport == ltSidecar and slot >= 0:
+    headers["X-Coworld-Player-Slot"] = $slot
   headers["content-type"] = "application/json"
   if client.transport == ltBedrock:
     body["anthropic_version"] = %BedrockAnthropicVersion
     if client.bedrockToken.len > 0:
       headers["authorization"] = "Bearer " & client.bedrockToken
     result.url = client.bedrockUrl()
+  elif client.transport == ltSidecar:
+    body["model"] = %client.model
+    headers["anthropic-version"] = AnthropicVersion
+    result.url = client.sidecarEndpoint & "/v1/messages"
   else:
     body["model"] = %client.model
     ## Only the Claude 5 / Opus tiers accept an effort setting; Haiku 4.5
@@ -616,7 +630,7 @@ proc runPlanBatch*(
       var user = requests[index].user
       if attempt > 0:
         user.add("\n" & RetryHint)
-      let request = client.requestFor(requests[index].system, user)
+      let request = client.requestFor(requests[index].system, user, requests[index].slot)
       batch.post(request.url, request.headers, request.body, $index)
     client.noteRequests(open.len)
     let responses = client.curl.makeRequests(batch, client.timeoutSeconds)
