@@ -59,8 +59,7 @@ def play(variant, seed, wording, prompt_seed, normalized=False):
         process.stdin.close()
         assert process.wait(timeout=30) == 0
         assert len(trace) == 144 and len(systems) == 6
-        assert observation["reason"] == "complete"
-        assert observation["ticks"] == (3040 if variant == "predator-prey" else 3000)
+        assert observation["kind"] == "terminal"
         return trace, observation["scores"], systems
 
 

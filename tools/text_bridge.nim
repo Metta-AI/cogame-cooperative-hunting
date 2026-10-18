@@ -65,6 +65,8 @@ when isMainModule:
         state.advancePlans()
         seat = 0
       if state.done:
+        doAssert state.game.globalTick == state.game.config.rounds *
+          (state.game.config.ticksPerRound + RoundEndDisplayTicks)
         var scores = newJObject()
         var utilities = newJObject()
         var highest = 1
@@ -72,8 +74,7 @@ when isMainModule:
         for actor in 0 ..< 6:
           scores[$actor] = %state.scores[actor]
           utilities[$actor] = %(2.0 * state.scores[actor].float / highest.float - 1.0)
-        next = %*{"kind": "terminal", "scores": scores, "utilities": utilities,
-          "ticks": state.game.globalTick, "reason": "complete"}
+        next = %*{"kind": "terminal", "scores": scores, "utilities": utilities}
       else:
         next = state.decision(seat, id)
       response = %*{"kind": "accepted", "action": plan.actionJson(), "observation": next}
