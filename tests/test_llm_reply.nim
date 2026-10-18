@@ -1,3 +1,4 @@
+import cooperative_hunting/prompts
 ## Reply handling: tolerant extraction, the enum coercions, the rune caps,
 ## the single retry on an illegal target, and -- the load-bearing one -- the
 ## no-credentials path making ZERO network calls.
@@ -206,7 +207,7 @@ block observationIsBounded:
   check("the observation still carries the reply contract after the cap",
     "LEGAL TARGETS:" in observation and "BLOCKED TILES" in observation and
     "YOUR NOTE:" in observation)
-  let systemPrompt = systemPromptFor(prompt)
+  let systemPrompt = systemPromptFor(prompt, PromptSelection())
   check("the system prompt demands a leading brace",
     "MUST begin with the character {" in systemPrompt)
   check("the system prompt carries the schema",

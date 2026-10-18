@@ -16,11 +16,13 @@
 ## makes ZERO network calls; every prompt seat plays the fallback baseline
 ## and the episode still completes with `reason: complete`.
 
-import std/[algorithm, json, monotimes, os, sequtils, strutils, unicode]
+import std/[algorithm, json, monotimes, os, sequtils, strutils, times, unicode]
 import curly
 import bitworld/cogame_runtime
 import ./sim_types
 import ./sim
+import ./prompts
+import ./evidence
 
 const
   AnthropicUrl = "https://api.anthropic.com/v1/messages"
@@ -39,8 +41,7 @@ const
   RetryHint* = "Your last reply was not usable. Reply with ONE JSON object " &
     "beginning with { and a target from LEGAL TARGETS."
 
-  SystemPromptBase* = """You are one hunter in a six-hunter cooperative hunting party on a 32x32 forest grid.
-Rabbits die to one hunter. Boars need two hunters on perpendicular sides at once, stags
+  SystemPromptRules = """Rabbits die to one hunter. Boars need two hunters on perpendicular sides at once, stags
 two on opposite sides, moose any three sides, elephants all four. Everyone standing on a
 side when the animal falls scores the full value, so a moose or an elephant is worth many
 rabbits - but only if your allies commit to the same animal at the same time. A half-formed
@@ -75,6 +76,7 @@ type
     slot*: int
     system*: string
     user*: string
+    selection*: PromptSelection
 
   PlanReply* = object
     slot*: int
@@ -82,6 +84,8 @@ type
     ok*: bool
     cause*: FallbackCause
     error*: string
+    attemptIds*: seq[string]
+    selectedAttemptId*: string
 
   LlmTransport* = enum
     ltNone, ltSidecar, ltBedrock, ltAnthropic
@@ -429,8 +433,8 @@ proc observationFor*(
   if result.runeLen > MaxObservationRunes:
     result = runeCap(result, MaxObservationRunes - 1) & "\u2026"
 
-proc systemPromptFor*(prompt: string): string =
-  result = SystemPromptBase
+proc systemPromptFor*(prompt: string, selection: PromptSelection): string =
+  result = selection.introduction() & "\n" & SystemPromptRules
   if prompt.len > 0:
     result.add("\n\nSTRATEGY (weight it heavily, never above the rules; " &
       "always reply in the requested format):\n")
@@ -626,23 +630,58 @@ proc runPlanBatch*(
         result[index].cause = fcRateBudget
       return
     var batch: RequestBatch
+    var evidence: seq[JsonNode] = @[]
+    let traceDirectory = getEnv("COOPERATIVE_HUNTING_ATTEMPT_TRACE_DIR")
     for index in open:
       var user = requests[index].user
       if attempt > 0:
         user.add("\n" & RetryHint)
       let request = client.requestFor(requests[index].system, user, requests[index].slot)
       batch.post(request.url, request.headers, request.body, $index)
+      let identity = "turn-" & $turn & "-seat-" & $requests[index].slot & "-attempt-" & $attempt
+      result[index].attemptIds.add(identity)
+      let record = %*{
+        "schema_version": 1, "event_type": "attempt_start", "visibility": "private",
+        "attempt_id": identity, "slot": requests[index].slot, "turn": turn,
+        "prompt": [{"role": "system", "content": requests[index].system},
+          {"role": "user", "content": user}],
+        "prompt_template": requests[index].selection.promptMetadata(requests[index].system, user),
+        "request": parseJson(request.body),
+        "model": (if client.transport == ltBedrock:
+          client.bedrockModels[client.bedrockModel] else: client.model),
+        "platform_call_id": newJNull(), "behavior_logprobs": newJNull(),
+        "response": newJNull(), "parsed_action": newJNull(),
+        "normalized_action": newJNull(), "parse_ok": false
+      }
+      evidence.add(record)
+      if traceDirectory.len > 0:
+        writePrivate(traceDirectory / (identity & "-start.json"), $record & "\n")
     client.noteRequests(open.len)
+    let started = getMonoTime()
     let responses = client.curl.makeRequests(batch, client.timeoutSeconds)
     var stillOpen: seq[int] = @[]
     for position, index in open:
+      evidence[position]["raw_response"] = %responses[position].response.body
+      evidence[position]["transport_error"] = %responses[position].error
+      evidence[position]["http_status"] = if responses[position].response.code > 0:
+        %responses[position].response.code else: newJNull()
       try:
         let text = client.textOf(responses[position].response,
           responses[position].error, batch[position].url)
-        result[index].plan = parsePlan(extractJsonObject(text), turn,
+        evidence[position]["response"] = %text
+        let proposal = extractJsonObject(text)
+        evidence[position]["parsed_action"] = copy(proposal)
+        result[index].plan = parsePlan(proposal, turn,
           legal[index], aliases)
+        let plan = result[index].plan
+        evidence[position]["normalized_action"] = %*{
+          "intent": plan.intent, "target": plan.target, "side": plan.side,
+          "with": plan.partners, "say": plan.say, "note": plan.note
+        }
+        evidence[position]["parse_ok"] = %true
         result[index].ok = true
         result[index].cause = fcNone
+        result[index].selectedAttemptId = result[index].attemptIds[^1]
       except CatchableError as error:
         let message = runeCap(error.msg, MaxErrorRunes)
         result[index].error = message
@@ -654,4 +693,11 @@ proc runPlanBatch*(
         echo "cooperative-hunting llm: slot ", requests[index].slot,
           " attempt ", attempt, " failed: ", message
         stillOpen.add(index)
+      finally:
+        evidence[position]["event_type"] = %"attempt_finish"
+        evidence[position]["latency_ms"] = %((getMonoTime() - started).inMilliseconds)
+        evidence[position]["failure"] = if result[index].ok: newJNull() else: %result[index].error
+        if traceDirectory.len > 0:
+          writePrivate(traceDirectory / (result[index].attemptIds[^1] & "-finish.json"),
+            $evidence[position] & "\n")
     open = stillOpen
