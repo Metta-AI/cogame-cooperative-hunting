@@ -1,7 +1,7 @@
 ## Full-plan text decisions; published episode lengths and real player controllers.
 import std/[json, os, posix]
 import cooperative_hunting
-import cooperative_hunting/[llm, prompts]
+import cooperative_hunting/[llm, prompts, sim_types]
 import plan_runtime
 
 proc seedOf(value: string): int =
