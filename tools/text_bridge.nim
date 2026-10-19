@@ -10,7 +10,7 @@ proc seedOf(value: string): int =
   int(hash and 0x7fffffff'u32) + 1
 
 proc decision(state: PlanGame, seat, id: int): JsonNode =
-  let system = systemPromptFor(OperatorPrompt, state.selection)
+  let system = systemPromptFor(OperatorPrompt, state.selection, state.game.config.variant)
   let user = state.observations[seat]
   %*{"kind": "decision", "game": "cooperative-hunting",
     "decision_id": id, "seat": seat, "engine_seat": seat,

@@ -159,11 +159,10 @@ jobs:
           nim c -d:release --hints:off --path:src -o:/tmp/cooperative-hunting-export tools/export_posttrain.nim
           python3 tools/test_export_posttrain.py /tmp/cooperative-hunting-export
 
-      - name: Exercise published native prompt episodes
+      - name: Exercise full-plan prompt wording
         run: |
-          nim c -d:release --hints:off --path:src -o:/tmp/cooperative-hunting-game src/cooperative_hunting.nim
-          nim c -d:release --hints:off --path:src -o:/tmp/cooperative-hunting-player src/cooperative_hunting_player.nim
-          python3 tools/test_native_prompts.py /tmp/cooperative-hunting-game /tmp/cooperative-hunting-player /tmp/cooperative-hunting-native --smoke
+          nim c -d:release --hints:off --parallelBuild:1 --path:src -o:/tmp/cooperative-hunting-text tools/text_bridge.nim
+          python3 tools/test_prompt_variants.py /tmp/cooperative-hunting-text
 
   # ---------------------------------------------------------------------
   # Packaging smoke: the production image builds, and one real episode runs

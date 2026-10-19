@@ -17,8 +17,6 @@ type PlanGame* = object
   scores*: array[6, int]
   observations*: array[6, string]
   proposals*: array[6, Plan]
-  controls*: array[6, string]
-  startTick*: int
   bots: array[6, Bot]
   states: array[6, ViewerState]
   plans: array[6, ActivePlan]
@@ -93,9 +91,7 @@ proc updatePlayers(state: var PlanGame) =
 
 proc advancePlans*(state: var PlanGame) =
   ## All six proposals were parsed against the same frozen planning boundary.
-  state.startTick = state.game.globalTick
   for seat in 0 ..< 6:
-    state.controls[seat].setLen(0)
     let packet = planPacket(state.proposals[seat])
     var blob = newString(packet.len)
     for i, value in packet: blob[i] = char(value)
@@ -104,7 +100,6 @@ proc advancePlans*(state: var PlanGame) =
   for tick in 0 ..< state.game.config.planIntervalTicks:
     var inputs: array[6, InputState]
     for seat in 0 ..< 6:
-      state.controls[seat].add(char(state.masks[seat]))
       inputs[seat] = decodeInputMask(state.masks[seat])
     state.game.step(inputs)
     state.collectFeed()
@@ -116,7 +111,6 @@ proc advancePlans*(state: var PlanGame) =
       for seat in 0 ..< 6: state.game.players[seat].overlayActive = true
       for cardTick in 1 .. RoundEndDisplayTicks:
         inc state.game.globalTick
-        for seat in 0 ..< 6: state.controls[seat].add(char(0))
         if cardTick == RoundEndDisplayTicks and roundIndex + 1 < state.game.config.rounds:
           state.game.startRound(roundIndex + 1)
           state.collectFeed()

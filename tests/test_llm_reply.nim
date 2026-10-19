@@ -207,7 +207,7 @@ block observationIsBounded:
   check("the observation still carries the reply contract after the cap",
     "LEGAL TARGETS:" in observation and "BLOCKED TILES" in observation and
     "YOUR NOTE:" in observation)
-  let systemPrompt = systemPromptFor(prompt, PromptSelection())
+  let systemPrompt = systemPromptFor(prompt, PromptSelection(), "staghunt")
   check("the system prompt demands a leading brace",
     "MUST begin with the character {" in systemPrompt)
   check("the system prompt carries the schema",

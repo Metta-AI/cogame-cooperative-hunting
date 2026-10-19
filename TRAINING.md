@@ -4,7 +4,10 @@ Hosted configuration accepts five training wordings: canonical, plain, numbered,
 questions, and reordered. Mixed selection requires an explicit nonnegative
 promptSeed and chooses seed modulo five. Heldout-briefing and heldout-reference
 are evaluation-only. Selection stays fixed for the episode and uses no simulation
-randomness. The default canonical prompt preserves the original text.
+randomness. The canonical staghunt prompt preserves the original text. Mining, level-based
+foraging, and predator-prey now describe their own capture and reward rules
+instead of the old animal-encirclement instructions. Each mode has five training
+briefings and two evaluation briefings with the same facts.
 
 The full-plan text bridge accepts a manifest and published variant:
 
@@ -25,30 +28,21 @@ The source exporter requires a clean committed checkout:
     nim c -d:release --path:src -o:/tmp/hunting-export tools/export_posttrain.nim
     /tmp/hunting-export OUTPUT 10 1 staghunt mixed 4
 
-It writes private trajectories.jsonl candidate evidence and a source manifest,
-not train/validation labels. Records preserve proposed and normalized plans,
-exact prompt hashes, applied input masks for every tick, final scores, and
-unknown inference metadata. Frozen round cards carry zero applied controls.
-The nearest-legal-plan teacher is a deterministic workflow fixture, not an
-expert-policy claim.
+It preserves the original train.jsonl, validation.jsonl, and manifest.json format.
+The exporter and text bridge share the real simulator/controller runtime. Mixed
+exports cycle the five training wordings within the requested episode count.
+The nearest-legal-plan teacher is a deterministic fixture, not an expert policy.
 
-Convert these records with the shared Coworld trajectory importer, then obtain
-independent application review before training admission. Keep every wording,
-variant, and seat from one scenario seed in the same split. Held-out wordings
-are rejected by the training exporter and by training resets.
+Keep every wording, variant, and seat from one scenario seed in the same split.
+Seeds divisible by five enter validation; other seeds enter training. Held-out
+wordings are rejected by training exports and training resets.
 
 For matched model experiments, hold scenario seeds, seat assignments, other
 policies, and inference budgets fixed. Report valid plans, retries, fallbacks,
 skipped turns, incomplete games, captures, scores, and actual control intervals.
 
-For native capture, set COOPERATIVE_HUNTING_HOST_TRACE_PATH to a fresh private
-file and COOPERATIVE_HUNTING_SOURCE_REVISION to the checked source identity.
-Set COOPERATIVE_HUNTING_ATTEMPT_TRACE_DIR to a fresh private directory for actual
-request start/finish records. Retry records hash the actual augmented user prompt.
-Budget skips create no inference records. Host records identify selected plans,
-queued sends, every applied control tick, and the terminal result. A queued send
-is not a player acknowledgement; acknowledgement remains unknown.
-
-Private artifacts contain strategy text and notes. They are separate from the
-public replay. Late responses and incomplete attempts must remain visible during
-review rather than being relabeled as successful decisions.
+Run `python tools/test_prompt_variants.py TEXT_BRIDGE` for full published
+episodes across every mode and wording. Run the existing
+`tools/test_export_posttrain.py` against the exporter for complete mixed corpora.
+These checks cover private observations, normalized plans, and scripted outcome
+parity. They do not reproduce asynchronous native inference timing.

@@ -15,7 +15,7 @@ import mummy
 import bitworld/client
 import bitworld/cogame_runtime
 import bitworld/protocol
-import cooperative_hunting/[sim, art, frames, replay, llm, baselines, prompts, evidence]
+import cooperative_hunting/[sim, art, frames, replay, llm, baselines, prompts]
 
 const
   WebSocketPath = "/player"
@@ -157,8 +157,7 @@ proc llmWorker(config: GameConfig) {.thread.} =
         requests.add(PlanRequest(
           slot: entry{"slot"}.getInt(),
           system: entry{"system"}.getStr(),
-          user: entry{"user"}.getStr(),
-          selection: promptSelection(entry["prompt_selection"])
+          user: entry{"user"}.getStr()
         ))
         var targets: seq[string] = @[]
         for target in entry{"legal"}:
@@ -179,8 +178,7 @@ proc llmWorker(config: GameConfig) {.thread.} =
           "side": r.plan.side,
           "with": partners,
           "say": r.plan.say,
-          "note": r.plan.note,
-          "attempt_ids": r.attemptIds, "selected_attempt_id": r.selectedAttemptId
+          "note": r.plan.note
         })
       reply = %*{
         "turn": turn,
@@ -200,7 +198,6 @@ type
   Episode = object
     config: GameConfig
     promptSelection: PromptSelection
-    tracePath: string
     sim: SimServer
     seats: seq[Seat]
     writer: ReplayWriter
@@ -388,16 +385,6 @@ proc roleNames(ep: Episode): seq[string] =
 proc newEpisode(config: GameConfig, seats: seq[Seat], selection: PromptSelection): Episode =
   result.config = config
   result.promptSelection = selection
-  result.tracePath = getEnv("COOPERATIVE_HUNTING_HOST_TRACE_PATH")
-  if result.tracePath.len > 0:
-    let revision = getEnv("COOPERATIVE_HUNTING_SOURCE_REVISION")
-    doAssert revision.len > 0, "private capture requires a source revision label"
-    writePrivate(result.tracePath, $(%*{
-      "schema_version": 1, "event_type": "episode_start", "visibility": "private",
-      "source_revision": revision, "seed": config.seed, "variant": config.variant,
-      "rounds": config.rounds, "ticks_per_round": config.ticksPerRound,
-      "tick_hz": config.tickHz, "prompt_selection": selection.selectionMetadata()
-    }) & "\n")
   result.seats = seats
   result.sim = initSim(config)
   result.sim.art.buildSpriteCache()
@@ -468,17 +455,10 @@ proc dispatchPlanBatch(ep: var Episode) =
       legalArr.add(%target)
     seatNodes.add(%*{
       "slot": ep.seats[index].slot,
-      "system": systemPromptFor(ep.seats[index].prompt, ep.promptSelection),
+      "system": systemPromptFor(ep.seats[index].prompt, ep.promptSelection, ep.config.variant),
       "user": ep.sim.observationFor(index, ep.turn, ep.turnsTotal,
         ep.seats[index].lastPlan, ep.seats[index].note, ep.recent, ""),
-      "legal": legalArr,
-      "prompt_selection": {"promptVariant": $ep.promptSelection.variant,
-        "promptSeed": ep.promptSelection.seed}
-    })
-  if ep.tracePath.len > 0:
-    appendPrivate(ep.tracePath, %*{
-      "event_type": "plan_dispatch", "turn": ep.turn, "tick": ep.sim.globalTick,
-      "seats": seatNodes
+      "legal": legalArr
     })
   planRequests.send($(%*{
     "turn": ep.turn, "aliases": aliases, "seats": seatNodes
@@ -559,15 +539,6 @@ proc pollPlanBatch(ep: var Episode) =
                      else: "big_game_hunter"),
         "cause": cause
       })
-    if ep.tracePath.len > 0:
-      appendPrivate(ep.tracePath, %*{
-        "event_type": "host_plan", "turn": turn, "slot": ep.seats[index].slot,
-        "tick": ep.sim.globalTick, "source": plan.src,
-        "attempt_ids": node["attempt_ids"],
-        "selected_attempt_id": (if node["ok"].getBool(): node["selected_attempt_id"] else: newJNull()),
-        "plan": {"intent": plan.intent, "target": plan.target, "side": plan.side,
-          "with": plan.partners, "say": plan.say, "note": plan.note}
-      })
 
 proc planPacket*(plan: Plan): seq[uint8] =
   var partners = newJArray()
@@ -596,8 +567,6 @@ proc advance(ep: var Episode, inputs: openArray[InputState]) =
   ## One tick of the episode, including the round card and the deadline
   ## guard. Returns with `ep.finished` set when the episode has settled.
   ep.pollPlanBatch()
-  let startTick = ep.sim.globalTick
-  let playing = ep.sim.phase == RoundPlaying
   case ep.sim.phase
   of RoundPlaying:
     ep.sim.step(inputs)
@@ -642,19 +611,6 @@ proc advance(ep: var Episode, inputs: openArray[InputState]) =
   if ep.finished:
     ep.sim.logEvent("episode_end", %*{"reason": $ep.reason})
     ep.ingestEvents()
-  if ep.tracePath.len > 0:
-    var masks = newJArray()
-    for input in inputs:
-      masks.add(%(if playing: int(encodeInputMask(input)) else: 0))
-    appendPrivate(ep.tracePath, %*{
-      "event_type": "controls", "start_tick": startTick, "end_tick": ep.sim.globalTick,
-      "tick_hz": ep.config.tickHz, "phase": (if playing: "play" else: "card"),
-      "input_masks": masks
-    })
-    if ep.finished:
-      appendPrivate(ep.tracePath, %*{
-        "event_type": "episode_end", "results": ep.resultsJson()
-      })
 
 # ---------------------------------------------------------------------------
 # Offline episode runner (no sockets): the harness tests/test_episode.nim
@@ -1181,12 +1137,6 @@ proc runServerLoop(host: string, port: int, config: GameConfig, selection: Promp
           ep.planReady[slot] = false
           sockets[slot].send(blobFromBytes(planPacket(ep.planForSeat[slot])),
             BinaryMessage)
-          if ep.tracePath.len > 0:
-            appendPrivate(ep.tracePath, %*{
-              "event_type": "plan_send_queued", "slot": slot,
-              "turn": ep.planForSeat[slot].turn, "tick": ep.sim.globalTick,
-              "player_acknowledgement": newJNull()
-            })
       except CatchableError:
         haveSocket[slot] = false
         ep.seats[slot].disconnected = true
