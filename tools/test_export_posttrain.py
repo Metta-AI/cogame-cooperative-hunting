@@ -27,9 +27,13 @@ if __name__ == "__main__":
             assert len(train) == manifest["train_examples"] == 1152
             assert len(validation) == manifest["validation_examples"] == 288
             assert len(manifest["runs"]) == 10
-            assert [run["prompt_selection"]["variant"] for run in manifest["runs"]] == [
+            wordings = {
+                "cooperative-hunting-" + str(run["seed"]): run["prompt_selection"]["variant"]
+                for run in manifest["runs"]
+            }
+            assert {wordings[row["seed"]] for row in train} == {
                 "canonical", "plain", "numbered", "questions", "reordered"
-            ] * 2
+            }
             assert {row["seed"] for row in train}.isdisjoint({row["seed"] for row in validation})
             assert all(len(run["scores"]) == 6 and run["decisions"] == 144 for run in manifest["runs"])
             for row in train + validation:

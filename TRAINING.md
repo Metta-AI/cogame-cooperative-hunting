@@ -30,7 +30,8 @@ The source exporter requires a clean committed checkout:
 
 It preserves the original train.jsonl, validation.jsonl, and manifest.json format.
 The exporter and text bridge share the real simulator/controller runtime. Mixed
-exports cycle the five training wordings within the requested episode count.
+exports cycle the five training wordings separately within each split. This
+prevents every-fifth-seed validation from excluding a training wording.
 The nearest-legal-plan teacher is a deterministic fixture, not an expert policy.
 
 Keep every wording, variant, and seat from one scenario seed in the same split.

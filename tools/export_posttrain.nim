@@ -34,9 +34,13 @@ when isMainModule:
   var
     trainRows, validationRows: seq[string]
     runs = newJArray()
+    wordingCounts: array[2, int]
   for seed in firstSeed ..< firstSeed + episodes:
     var selection = initialSelection
-    if selection.variant == pvMixed: selection.seed += seed - firstSeed
+    let partition = ord(seed mod 5 == 0)
+    if selection.variant == pvMixed:
+      selection.seed += wordingCounts[partition]
+    inc wordingCounts[partition]
     var config = parseGameConfig($variantConfig)
     config.seed = seed
     var state = initPlanGame(config, selection)
