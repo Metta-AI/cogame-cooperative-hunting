@@ -52,7 +52,8 @@ when isMainModule:
           state.game.legalTargets(seat), state.aliases)
         doAssert state.proposals[seat].actionJson() == proposal
         rows.add($(%*{
-          "episode_id": "cooperative-hunting-" & variant & "-" & $seed & "-" & $selection.selectedVariant,
+          "episode_id": "cooperative-hunting-" & variant & "-" & $seed & "-" &
+            $selection.variant & "-" & $selection.selectedVariant & "-" & $selection.seed,
           "seed": "cooperative-hunting-" & $seed,
           "decision_id": rows.len,
           "prompt": [

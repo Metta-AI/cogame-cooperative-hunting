@@ -32,6 +32,8 @@ It preserves the original train.jsonl, validation.jsonl, and manifest.json forma
 The exporter and text bridge share the real simulator/controller runtime. Mixed
 exports cycle the five training wordings separately within each split. This
 prevents every-fifth-seed validation from excluding a training wording.
+Episode IDs include the requested selection, resolved wording, and prompt seed
+so matched exports remain distinct. Scenario seed families stay unchanged.
 The nearest-legal-plan teacher is a deterministic fixture, not an expert policy.
 
 Keep every wording, variant, and seat from one scenario seed in the same split.
