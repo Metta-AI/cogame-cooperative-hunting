@@ -68,6 +68,14 @@ In-game every seat is `Cog-A` … `Cog-F`, assigned by a seeded permutation.
 Real policy names exist only spectator-side: the replay's `seats[].name`, the
 viewer chrome and `results.names[]`.
 
+## Prompt wording
+
+Set `promptVariant` and `promptSeed` in the game configuration to select an
+episode-stable wording independently of the scenario seed. Five training
+wordings and two held-out paraphrases share the same rules and action schema.
+See [training](TRAINING.md) for full-plan collection and scenario-family splits.
+Each game mode now states its own capture rules; staghunt canonical text is preserved.
+
 ## Layout
 
 | path | what |

@@ -15,7 +15,7 @@ import mummy
 import bitworld/client
 import bitworld/cogame_runtime
 import bitworld/protocol
-import cooperative_hunting/[sim, art, frames, replay, llm, baselines]
+import cooperative_hunting/[sim, art, frames, replay, llm, baselines, prompts]
 
 const
   WebSocketPath = "/player"
@@ -197,6 +197,7 @@ proc llmWorker(config: GameConfig) {.thread.} =
 type
   Episode = object
     config: GameConfig
+    promptSelection: PromptSelection
     sim: SimServer
     seats: seq[Seat]
     writer: ReplayWriter
@@ -381,8 +382,9 @@ proc roleNames(ep: Episode): seq[string] =
   for p in ep.sim.players:
     result.add(if p.role == roleHunter: "hunter" else: "forager")
 
-proc newEpisode(config: GameConfig, seats: seq[Seat]): Episode =
+proc newEpisode(config: GameConfig, seats: seq[Seat], selection: PromptSelection): Episode =
   result.config = config
+  result.promptSelection = selection
   result.seats = seats
   result.sim = initSim(config)
   result.sim.art.buildSpriteCache()
@@ -453,7 +455,7 @@ proc dispatchPlanBatch(ep: var Episode) =
       legalArr.add(%target)
     seatNodes.add(%*{
       "slot": ep.seats[index].slot,
-      "system": systemPromptFor(ep.seats[index].prompt),
+      "system": systemPromptFor(ep.seats[index].prompt, ep.promptSelection, ep.config.variant),
       "user": ep.sim.observationFor(index, ep.turn, ep.turnsTotal,
         ep.seats[index].lastPlan, ep.seats[index].note, ep.recent, ""),
       "legal": legalArr
@@ -631,7 +633,7 @@ proc runEpisodeOffline*(
                  else: "big_game_hunter"),
       connected: true
     ))
-  var ep = newEpisode(config, seats)
+  var ep = newEpisode(config, seats, PromptSelection())
   var bots: seq[Bot] = @[]
   var states: seq[ViewerState] = @[]
   for slot in 0 ..< config.numAgents:
@@ -953,7 +955,7 @@ proc writeNoPlayersResults(config: GameConfig) =
     writeCogameUri(replayUri, writer.finish(results), "application/json",
       "replay", cogameHttpMethod(CogameSaveReplayMethodEnv))
 
-proc runServerLoop(host: string, port: int, config: GameConfig) =
+proc runServerLoop(host: string, port: int, config: GameConfig, selection: PromptSelection) =
   initAppState(config)
 
   let httpServer = newServer(
@@ -1023,7 +1025,7 @@ proc runServerLoop(host: string, port: int, config: GameConfig) =
               seat.baseline = registration.baseline
     seats.add(seat)
 
-  var ep = newEpisode(config, seats)
+  var ep = newEpisode(config, seats, selection)
   ep.llmEnabled = false
   for seat in seats:
     if seat.kind == pkPrompt:
@@ -1181,11 +1183,14 @@ when isMainModule:
     else: discard
 
   var config = defaultGameConfig()
+  var selection: PromptSelection
   if configPath.len > 0 and fileExists(configPath):
     echo "loading config from: ", configPath
-    config = parseGameConfig(readFile(configPath))
+    let rawConfig = readFile(configPath)
+    config = parseGameConfig(rawConfig)
+    selection = promptSelection(parseJson(rawConfig))
   echo "starting cooperative_hunting on ", address, ":", port,
     " variant=", config.variant, " seats=", config.numAgents,
     " rounds=", config.rounds, "x", config.ticksPerRound,
     " tickHz=", config.tickHz
-  runServerLoop(address, port, config)
+  runServerLoop(address, port, config, selection)

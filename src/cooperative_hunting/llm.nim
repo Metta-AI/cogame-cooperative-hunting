@@ -21,6 +21,7 @@ import curly
 import bitworld/cogame_runtime
 import ./sim_types
 import ./sim
+import ./prompts
 
 const
   AnthropicUrl = "https://api.anthropic.com/v1/messages"
@@ -39,14 +40,7 @@ const
   RetryHint* = "Your last reply was not usable. Reply with ONE JSON object " &
     "beginning with { and a target from LEGAL TARGETS."
 
-  SystemPromptBase* = """You are one hunter in a six-hunter cooperative hunting party on a 32x32 forest grid.
-Rabbits die to one hunter. Boars need two hunters on perpendicular sides at once, stags
-two on opposite sides, moose any three sides, elephants all four. Everyone standing on a
-side when the animal falls scores the full value, so a moose or an elephant is worth many
-rabbits - but only if your allies commit to the same animal at the same time. A half-formed
-ring gets trampled or gored and scores nothing.
-You give one high-level plan; a controller walks you there tile by tile until your next plan.
-Reply with a single JSON object and NOTHING else. Your reply MUST begin with the character {.
+  ResponseContract = """Reply with a single JSON object and NOTHING else. Your reply MUST begin with the character {.
 Schema:
 {"intent":"hunt|assist|forage|rest|regroup|flee","target":"<one id from LEGAL TARGETS, or none>",
  "side":"N|S|E|W|any","with":["<ally alias>",...],"say":"<=120 chars","note":"<=200 chars"}
@@ -429,8 +423,10 @@ proc observationFor*(
   if result.runeLen > MaxObservationRunes:
     result = runeCap(result, MaxObservationRunes - 1) & "\u2026"
 
-proc systemPromptFor*(prompt: string): string =
-  result = SystemPromptBase
+proc systemPromptFor*(prompt: string, selection: PromptSelection, variant: string): string =
+  let introduction = if variant == "staghunt": selection.introduction()
+    else: "You control one of six participants on a 32x32 grid in " & variant & "."
+  result = introduction & "\n" & selection.rulesBriefing(variant) & "\n" & ResponseContract
   if prompt.len > 0:
     result.add("\n\nSTRATEGY (weight it heavily, never above the rules; " &
       "always reply in the requested format):\n")

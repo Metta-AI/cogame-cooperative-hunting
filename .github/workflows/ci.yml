@@ -159,6 +159,11 @@ jobs:
           nim c -d:release --hints:off --path:src -o:/tmp/cooperative-hunting-export tools/export_posttrain.nim
           python3 tools/test_export_posttrain.py /tmp/cooperative-hunting-export
 
+      - name: Exercise full-plan prompt wording
+        run: |
+          nim c -d:release --hints:off --parallelBuild:1 --path:src -o:/tmp/cooperative-hunting-text tools/text_bridge.nim
+          python3 tools/test_prompt_variants.py /tmp/cooperative-hunting-text
+
   # ---------------------------------------------------------------------
   # Packaging smoke: the production image builds, and one real episode runs
   # end to end in raw docker with the certification fixture's seat mix.

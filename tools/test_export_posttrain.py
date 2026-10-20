@@ -20,13 +20,20 @@ if __name__ == "__main__":
     with tempfile.TemporaryDirectory() as temp:
         for variant in VARIANTS:
             output = Path(temp) / variant
-            subprocess.run([str(binary), str(output), "10", "1", variant], cwd=ROOT, check=True)
+            subprocess.run([str(binary), str(output), "10", "1", variant, "mixed", "0"], cwd=ROOT, check=True)
             train = rows(output / "train.jsonl")
             validation = rows(output / "validation.jsonl")
             manifest = json.loads((output / "manifest.json").read_text())
             assert len(train) == manifest["train_examples"] == 1152
             assert len(validation) == manifest["validation_examples"] == 288
             assert len(manifest["runs"]) == 10
+            wordings = {
+                "cooperative-hunting-" + str(run["seed"]): run["prompt_selection"]["variant"]
+                for run in manifest["runs"]
+            }
+            assert {wordings[row["seed"]] for row in train} == {
+                "canonical", "plain", "numbered", "questions", "reordered"
+            }
             assert {row["seed"] for row in train}.isdisjoint({row["seed"] for row in validation})
             assert all(len(run["scores"]) == 6 and run["decisions"] == 144 for run in manifest["runs"])
             for row in train + validation:
