@@ -16,12 +16,13 @@
 ## makes ZERO network calls; every prompt seat plays the fallback baseline
 ## and the episode still completes with `reason: complete`.
 
-import std/[algorithm, json, monotimes, os, sequtils, strutils, unicode]
+import std/[algorithm, json, monotimes, options, os, sequtils, strutils, times, unicode]
 import curly
 import bitworld/cogame_runtime
 import ./sim_types
 import ./sim
 import ./prompts
+import ./[decision_trajectory, native_evidence]
 
 const
   AnthropicUrl = "https://api.anthropic.com/v1/messages"
@@ -69,6 +70,7 @@ type
     slot*: int
     system*: string
     user*: string
+    policy*: string
 
   PlanReply* = object
     slot*: int
@@ -76,6 +78,7 @@ type
     ok*: bool
     cause*: FallbackCause
     error*: string
+    attempts*: seq[DecisionAttempt]
 
   LlmTransport* = enum
     ltNone, ltSidecar, ltBedrock, ltAnthropic
@@ -588,6 +591,10 @@ proc textOf(
     raise newException(ChError, "reply cut off at max_tokens before any " &
       "JSON: " & result[0 .. min(result.high, 160)].replace("\n", " "))
 
+proc planActionJson*(plan: Plan): JsonNode =
+  %*{"intent": plan.intent, "target": plan.target, "side": plan.side,
+    "with": plan.partners, "say": plan.say, "note": plan.note}
+
 proc runPlanBatch*(
   client: LlmClient,
   requests: seq[PlanRequest],
@@ -622,25 +629,39 @@ proc runPlanBatch*(
         result[index].cause = fcRateBudget
       return
     var batch: RequestBatch
+    var bodies: seq[string]
     for index in open:
       var user = requests[index].user
       if attempt > 0:
         user.add("\n" & RetryHint)
       let request = client.requestFor(requests[index].system, user, requests[index].slot)
       batch.post(request.url, request.headers, request.body, $index)
+      bodies.add(request.body)
     client.noteRequests(open.len)
+    let started = getMonoTime()
     let responses = client.curl.makeRequests(batch, client.timeoutSeconds)
+    let latency = int((getMonoTime() - started).inMilliseconds)
     var stillOpen: seq[int] = @[]
     for position, index in open:
+      let capturing = getEnv(CogameSaveTrajectoryUriEnv).len > 0
+      var evidence: DecisionAttempt
+      if capturing:
+        evidence = modelAttempt($turn & "-" & $requests[index].slot & "-" & $attempt,
+          requests[index].policy,
+          (if client.transport == ltBedrock: client.bedrockModels[client.bedrockModel] else: client.model),
+          batch[position].url, bodies[position],
+          responses[position].response, responses[position].error, latency)
       try:
         let text = client.textOf(responses[position].response,
           responses[position].error, batch[position].url)
+        if capturing: evidence.response = %text
         result[index].plan = parsePlan(extractJsonObject(text), turn,
           legal[index], aliases)
         result[index].ok = true
         result[index].cause = fcNone
       except CatchableError as error:
         let message = runeCap(error.msg, MaxErrorRunes)
+        if capturing: evidence.rejectionReason = some(message)
         result[index].error = message
         result[index].cause =
           if "LEGAL TARGETS" in message: fcIllegalTarget
@@ -650,4 +671,5 @@ proc runPlanBatch*(
         echo "cooperative-hunting llm: slot ", requests[index].slot,
           " attempt ", attempt, " failed: ", message
         stillOpen.add(index)
+      if capturing: result[index].attempts.add(evidence)
     open = stillOpen

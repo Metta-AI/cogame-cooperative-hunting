@@ -15,7 +15,8 @@ import mummy
 import bitworld/client
 import bitworld/cogame_runtime
 import bitworld/protocol
-import cooperative_hunting/[sim, art, frames, replay, llm, baselines, prompts]
+import cooperative_hunting/[sim, art, frames, replay, llm, baselines, prompts,
+  decision_trajectory, training_capture]
 
 const
   WebSocketPath = "/player"
@@ -157,7 +158,8 @@ proc llmWorker(config: GameConfig) {.thread.} =
         requests.add(PlanRequest(
           slot: entry{"slot"}.getInt(),
           system: entry{"system"}.getStr(),
-          user: entry{"user"}.getStr()
+          user: entry{"user"}.getStr(),
+          policy: entry{"policy"}.getStr()
         ))
         var targets: seq[string] = @[]
         for target in entry{"legal"}:
@@ -169,7 +171,10 @@ proc llmWorker(config: GameConfig) {.thread.} =
         var partners = newJArray()
         for p in r.plan.partners:
           partners.add(%p)
+        var attempts = newJArray()
+        for evidence in r.attempts: attempts.add(evidence.attemptEvidenceJson())
         plans.add(%*{
+          "attempts": attempts,
           "slot": r.slot,
           "ok": r.ok,
           "cause": $r.cause,
@@ -218,6 +223,7 @@ type
     planForSeat: seq[Plan]
     planReady: seq[bool]
     startedAt: MonoTime
+    capture: RuntimeCapture
 
 proc episodeSeconds(ep: Episode): float =
   float((getMonoTime() - ep.startedAt).inMilliseconds) / 1000.0
@@ -413,6 +419,7 @@ proc newEpisode(config: GameConfig, seats: seq[Seat], selection: PromptSelection
       "slot": p.slot, "alias": p.alias, "x": p.tileX, "y": p.tileY
     })
   result.startedAt = getMonoTime()
+  result.capture = newRuntimeCapture(result.sim, selection)
 
 # ---------------------------------------------------------------------------
 # Planning turns
@@ -455,11 +462,14 @@ proc dispatchPlanBatch(ep: var Episode) =
       legalArr.add(%target)
     seatNodes.add(%*{
       "slot": ep.seats[index].slot,
+      "policy": "native-prompt",
       "system": systemPromptFor(ep.seats[index].prompt, ep.promptSelection, ep.config.variant),
       "user": ep.sim.observationFor(index, ep.turn, ep.turnsTotal,
         ep.seats[index].lastPlan, ep.seats[index].note, ep.recent, ""),
       "legal": legalArr
     })
+  ep.capture.beginBatch(ep.turn, ep.sim.globalTick, ep.sim.roundIndex + 1,
+    ep.sim.tickCount, seatNodes, aliases, ep.promptSelection)
   planRequests.send($(%*{
     "turn": ep.turn, "aliases": aliases, "seats": seatNodes
   }))
@@ -483,6 +493,7 @@ proc pollPlanBatch(ep: var Episode) =
   let reply =
     try: parseJson(got.msg)
     except CatchableError: newJObject()
+  ep.capture.received(reply)
   ep.llmRequests = reply{"requests"}.getInt(ep.llmRequests)
   if reply{"disabled"}.getBool():
     ep.llmEnabled = false
@@ -540,6 +551,14 @@ proc pollPlanBatch(ep: var Episode) =
         "cause": cause
       })
 
+proc drainPrivateFinalReply(ep: var Episode) =
+  ## Joining can finish a call after the last playing tick. Retain its evidence
+  ## without applying a late plan or changing the already settled public result.
+  if ep.capture == nil or not ep.batchInFlight: return
+  let got = planReplies.tryRecv()
+  if got.dataAvailable:
+    ep.capture.received(parseJson(got.msg))
+
 proc planPacket*(plan: Plan): seq[uint8] =
   var partners = newJArray()
   for p in plan.partners:
@@ -570,6 +589,7 @@ proc advance(ep: var Episode, inputs: openArray[InputState]) =
   case ep.sim.phase
   of RoundPlaying:
     ep.sim.step(inputs)
+    ep.capture.appliedInputs(inputs, true)
     ep.ingestEvents()
     if ep.sim.tickCount >= ep.config.ticksPerRound:
       ep.freezeRound()
@@ -583,6 +603,7 @@ proc advance(ep: var Episode, inputs: openArray[InputState]) =
     # replay has frames and the viewer's scrubber stays honest.
     ep.sim.pendingCaptures.setLen(0)
     inc ep.sim.globalTick
+    ep.capture.appliedInputs(inputs, false)
     inc ep.roundEndTick
     if ep.roundEndTick >= RoundEndDisplayTicks:
       if ep.sim.roundIndex + 1 >= ep.config.rounds:
@@ -903,7 +924,7 @@ proc writeArtifacts(ep: Episode) =
     echo "replay written to: ", replayUri, " (", ep.writer.ticks.len,
       " ticks)"
 
-proc writeNoPlayersResults(config: GameConfig) =
+proc writeNoPlayersResults(config: GameConfig, selection: PromptSelection) =
   ## Zero seats connected inside the connect timeout: results.json is
   ## written with all-zero scores and the process exits 0. Never a hang,
   ## never a non-zero exit.
@@ -944,6 +965,10 @@ proc writeNoPlayersResults(config: GameConfig) =
     "variant": config.variant, "seed": config.seed, "final_tick": 0,
     "reason": $erNoPlayers
   }
+  let capture = newRuntimeCapture(initSim(config), selection)
+  defer:
+    if capture != nil and not capture.sealed:
+      capture.finishCapture(results, getCurrentExceptionMsg() & " no-player artifact write failed")
   let resultsUri = getEnv(CogameResultsUriEnv)
   if resultsUri.len > 0:
     writeCogameUri(resultsUri, $results & "\n", "application/json",
@@ -954,6 +979,7 @@ proc writeNoPlayersResults(config: GameConfig) =
     var writer = initReplayWriter(sim, @[])
     writeCogameUri(replayUri, writer.finish(results), "application/json",
       "replay", cogameHttpMethod(CogameSaveReplayMethodEnv))
+  capture.finishCapture(results)
 
 proc runServerLoop(host: string, port: int, config: GameConfig, selection: PromptSelection) =
   initAppState(config)
@@ -989,7 +1015,7 @@ proc runServerLoop(host: string, port: int, config: GameConfig, selection: Promp
   echo "roster closed with ", connected, "/", config.numAgents, " seats"
 
   if connected == 0:
-    writeNoPlayersResults(config)
+    writeNoPlayersResults(config, selection)
     echo "no seats connected; settling with reason no_players"
     sleep(ShutdownGraceSeconds * 1000)
     httpServer.close()
@@ -1035,6 +1061,17 @@ proc runServerLoop(host: string, port: int, config: GameConfig, selection: Promp
     planReplies.open()
     createThread(llmThread, llmWorker, config)
     llmThreadRunning = true
+
+  defer:
+    if ep.capture != nil and not ep.capture.sealed:
+      if llmThreadRunning:
+        planRequests.send("quit")
+        joinThread(llmThread)
+        ep.drainPrivateFinalReply()
+        planRequests.close()
+        planReplies.close()
+        llmThreadRunning = false
+      ep.capture.finishCapture(ep.resultsJson(), getCurrentExceptionMsg() & " native loop exited before sealing")
 
   var lastTick = getMonoTime()
   let frameDuration = initDuration(
@@ -1122,6 +1159,7 @@ proc runServerLoop(host: string, port: int, config: GameConfig, selection: Promp
             ViewerState())
       var nextState: ViewerState
       let bytes = ep.sim.buildPlayerFrame(slot, state, nextState)
+      var planSent = false
       try:
         if ep.seats[slot].seatInfo:
           sockets[slot].send(blobFromBytes(ep.sim.seatInfoPacket(slot)),
@@ -1137,10 +1175,13 @@ proc runServerLoop(host: string, port: int, config: GameConfig, selection: Promp
           ep.planReady[slot] = false
           sockets[slot].send(blobFromBytes(planPacket(ep.planForSeat[slot])),
             BinaryMessage)
+          planSent = true
       except CatchableError:
         haveSocket[slot] = false
         ep.seats[slot].disconnected = true
         ep.sim.players[slot].disconnected = true
+      if planSent:
+        ep.capture.delivered(slot, ep.sim.globalTick, ep.planForSeat[slot])
 
     let elapsed = getMonoTime() - lastTick
     if elapsed < frameDuration:
@@ -1153,8 +1194,12 @@ proc runServerLoop(host: string, port: int, config: GameConfig, selection: Promp
   if llmThreadRunning:
     planRequests.send("quit")
     joinThread(llmThread)
+    ep.drainPrivateFinalReply()
     planRequests.close()
     planReplies.close()
+    llmThreadRunning = false
+
+  ep.capture.finishCapture(ep.resultsJson())
 
   # The certification runner pings /global AFTER the player pods start and a
   # fast exit fails the episode (lantern 0.1.3), so keep answering for a
